@@ -3,7 +3,6 @@ import {
   Radio,
   Cloud,
   CloudRain,
-  CloudLightning,
   Wind,
   Eye,
   Gauge,
@@ -17,7 +16,6 @@ import {
   Map,
   Plane,
   Shield,
-  Zap,
   Sparkles,
   X,
   ChevronRight,
@@ -53,7 +51,6 @@ export default function RadarCard({
   const [activeLayer, setActiveLayer] = useState('ALL'); // 'ALL', 'FLIGHTS', 'WEATHER', 'MAP'
   const [showMap, setShowMap] = useState(true);
   const [showWeatherRadar, setShowWeatherRadar] = useState(true);
-  const [simulateStorm, setSimulateStorm] = useState(false);
   const [isDecluttered, setIsDecluttered] = useState(true); // Default to clean, decluttered mode
   const [selectedCategory, setSelectedCategory] = useState('ALL'); // 'ALL', 'COMMERCIAL', 'CARGO', 'MILITARY', 'PRIVATE', 'REGIONAL', 'HELICOPTER'
   const [activeTab, setActiveTab] = useState('FLIGHTS'); // 'FLIGHTS', 'WEATHER'
@@ -105,12 +102,12 @@ export default function RadarCard({
   // Load weather radar and atmospheric telemetry
   const loadClouds = useCallback(async () => {
     try {
-      const data = await fetchBangaloreCloudInfo(activeCenter.lat, activeCenter.lon, simulateStorm);
+      const data = await fetchBangaloreCloudInfo(activeCenter.lat, activeCenter.lon);
       setCloudData(data);
     } catch (err) {
       console.warn('RadarCard: error loading clouds', err);
     }
-  }, [activeCenter, simulateStorm]);
+  }, [activeCenter]);
 
   // Initial and periodic refresh
   useEffect(() => {
@@ -125,11 +122,6 @@ export default function RadarCard({
       clearInterval(cloudTimer);
     };
   }, [loadFlights, loadClouds]);
-
-  // Refresh when simulateStorm toggles
-  useEffect(() => {
-    loadClouds();
-  }, [simulateStorm, loadClouds]);
 
   // Manual refresh handler
   const handleRefresh = async () => {
@@ -1107,15 +1099,6 @@ export default function RadarCard({
         {/* Quick Top Actions */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <button
-            className={`radar-icon-btn ${simulateStorm ? 'is-active storm-active' : ''}`}
-            onClick={() => setSimulateStorm(!simulateStorm)}
-            title={simulateStorm ? 'Disable simulated monsoon storm' : 'Simulate monsoon rain storm cells & Doppler dBZ on radar'}
-            aria-label="Toggle storm simulation"
-          >
-            <CloudLightning size={14} />
-          </button>
-
-          <button
             className={`radar-icon-btn ${isAudioEnabled ? 'is-active' : ''}`}
             onClick={() => setIsAudioEnabled(!isAudioEnabled)}
             title={isAudioEnabled ? 'Mute radar ping' : 'Enable tactical radar ping'}
@@ -1347,11 +1330,6 @@ export default function RadarCard({
                   <span className="box-title">Doppler Weather Radar</span>
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                  {simulateStorm && (
-                    <span className="storm-sim-indicator">
-                      <Zap size={10} /> SIMULATED STORM
-                    </span>
-                  )}
                   <span
                     className="category-pill"
                     style={{

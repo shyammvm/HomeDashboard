@@ -589,10 +589,10 @@ export function interpretWeatherCode(code) {
 /**
  * Generate localized spatial weather radar cells around Bangalore
  */
-export function generateRadarPrecipitationCells(centerLat, centerLon, currentPrecipMm, cloudCover, windDeg, simulateStorm = false) {
+export function generateRadarPrecipitationCells(centerLat, centerLon, currentPrecipMm, cloudCover, windDeg) {
   const cells = [];
-  const baseIntensity = simulateStorm ? 18.5 : Math.max(0, currentPrecipMm);
-  const isWet = baseIntensity > 0.1 || simulateStorm;
+  const baseIntensity = Math.max(0, currentPrecipMm);
+  const isWet = baseIntensity > 0.1;
 
   // Key sector anchor locations in Greater Bangalore FIR
   const anchors = [
@@ -627,7 +627,7 @@ export function generateRadarPrecipitationCells(centerLat, centerLon, currentPre
 /**
  * Fetch comprehensive weather radar, precipitation telemetry, and RainViewer Doppler radar metadata
  */
-export async function fetchBangaloreCloudInfo(lat = 13.1986, lon = 77.7066, simulateStorm = false) {
+export async function fetchBangaloreCloudInfo(lat = 13.1986, lon = 77.7066) {
   let actualLat = lat;
   let actualLon = lon;
   if (typeof lat === 'object' && lat !== null) {
@@ -675,7 +675,7 @@ export async function fetchBangaloreCloudInfo(lat = 13.1986, lon = 77.7066, simu
     const rainRiskPct = hourlyProb.length > 0 ? Math.max(...hourlyProb) : (precipMm > 0 ? 90 : 5);
 
     // Doppler reflectivity peak dBZ
-    const peakDbz = simulateStorm ? 54 : rainRateToDbz(precipMm);
+    const peakDbz = rainRateToDbz(precipMm);
     const dbzInfo = getDbzColor(peakDbz);
 
     // Aviation flight category
@@ -704,7 +704,7 @@ export async function fetchBangaloreCloudInfo(lat = 13.1986, lon = 77.7066, simu
     const stormMotionCompass = getCompassDirection(stormMotionDir);
 
     // Spatial Doppler precipitation cells
-    const radarCells = generateRadarPrecipitationCells(actualLat, actualLon, precipMm, cloudTotal, windDeg, simulateStorm);
+    const radarCells = generateRadarPrecipitationCells(actualLat, actualLon, precipMm, cloudTotal, windDeg);
 
     return {
       cloudTotal,
@@ -726,12 +726,12 @@ export async function fetchBangaloreCloudInfo(lat = 13.1986, lon = 77.7066, simu
       stormMotionCompass,
       pressureHpa: pressure,
       humidity,
-      precipMm: simulateStorm ? 22.4 : Math.round(precipMm * 10) / 10,
+      precipMm: Math.round(precipMm * 10) / 10,
       rainRiskPct,
       peakDbz,
       dbzLabel: dbzInfo.label,
       dbzColor: dbzInfo.color,
-      isRaining: precipMm > 0.1 || wmoInterpretation.isRain || simulateStorm,
+      isRaining: precipMm > 0.1 || wmoInterpretation.isRain,
       radarCells,
       rainviewer: data.rainviewer || null,
       hourlyProb,
@@ -739,7 +739,7 @@ export async function fetchBangaloreCloudInfo(lat = 13.1986, lon = 77.7066, simu
     };
   } catch (err) {
     console.warn('Weather fetch error, using default meteorological estimate:', err);
-    const fallbackDbz = simulateStorm ? 54 : 14;
+    const fallbackDbz = 14;
     const dbzInfo = getDbzColor(fallbackDbz);
     return {
       cloudTotal: 18,
@@ -761,13 +761,13 @@ export async function fetchBangaloreCloudInfo(lat = 13.1986, lon = 77.7066, simu
       stormMotionCompass: 'WNW',
       pressureHpa: 1013,
       humidity: 62,
-      precipMm: simulateStorm ? 22.4 : 0,
-      rainRiskPct: simulateStorm ? 95 : 10,
+      precipMm: 0,
+      rainRiskPct: 10,
       peakDbz: fallbackDbz,
       dbzLabel: dbzInfo.label,
       dbzColor: dbzInfo.color,
-      isRaining: simulateStorm,
-      radarCells: generateRadarPrecipitationCells(actualLat, actualLon, 0, 18, 110, simulateStorm),
+      isRaining: false,
+      radarCells: generateRadarPrecipitationCells(actualLat, actualLon, 0, 18, 110),
       rainviewer: null,
       hourlyProb: [10, 10, 5, 5, 5, 5],
       timestamp: Date.now(),

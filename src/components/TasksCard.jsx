@@ -56,7 +56,7 @@ export default function TasksCard({
           }}
         >
           {isSynced && <span className="pulse-dot" style={{ backgroundColor: 'var(--accent-emerald)', width: 6, height: 6 }} />}
-          {isSynced ? 'GOOGLE TASKS' : 'TASK FEED'} • {doneTodayTasks.length}/{totalToday} DONE
+          {isSynced ? 'GOOGLE TASKS' : 'TASK FEED'} • {totalToday > 0 ? `${doneTodayTasks.length}/${totalToday} DONE` : 'ALL CLEAR'}
         </span>
       </div>
 
@@ -106,8 +106,12 @@ export default function TasksCard({
       <div className="task-list custom-scroll">
         {filteredTasks.length === 0 ? (
           <div style={{ textAlign: 'center', padding: '24px 0', color: 'var(--text-dim)', fontSize: 12.5 }}>
-            <Sparkles size={20} style={{ margin: '0 auto 6px', opacity: 0.5 }} />
-            {filter === 'done' ? 'No tasks completed yet today.' : 'No tasks in this view.'}
+            <Sparkles size={20} style={{ margin: '0 auto 6px', opacity: 0.5, color: 'var(--accent-emerald)' }} />
+            {filter === 'done'
+              ? 'No tasks completed yet today.'
+              : totalToday === 0
+                ? (isSynced ? 'All directives complete • No pending tasks' : 'No tasks synced • Configure Google Sync URL in Settings')
+                : 'No tasks in this view.'}
           </div>
         ) : (
           filteredTasks.map((t) => {

@@ -77,6 +77,8 @@ function isCompletedToday(dateStrOrObj) {
 function normalizeTasks(rawTasks) {
   return rawTasks
     .filter(t => {
+      // Exclude any legacy mock tasks
+      if (t.id && ['g-1', 'g-2', 'g-3', 'g-4', 'g-5'].includes(t.id)) return false;
       const isCompleted = Boolean(t.completed || t.status === 'completed');
       if (!isCompleted) return true; // Keep all active/pending tasks
       // For completed tasks, only keep if completed today
@@ -103,7 +105,8 @@ function normalizeTasks(rawTasks) {
 
 function cacheTasksLocally(tasks) {
   try {
-    localStorage.setItem('aether_google_tasks_cache', JSON.stringify(tasks));
+    const sanitized = tasks.filter(t => !['g-1', 'g-2', 'g-3', 'g-4', 'g-5'].includes(t.id));
+    localStorage.setItem('aether_google_tasks_cache', JSON.stringify(sanitized));
   } catch {
     // Ignore storage errors
   }
@@ -115,53 +118,16 @@ export function getCachedOrFallbackTasks() {
     if (cached) {
       const parsed = JSON.parse(cached);
       if (Array.isArray(parsed) && parsed.length > 0) {
-        return normalizeTasks(parsed);
+        const sanitized = parsed.filter(t => !['g-1', 'g-2', 'g-3', 'g-4', 'g-5'].includes(t.id));
+        if (sanitized.length > 0) {
+          return normalizeTasks(sanitized);
+        }
       }
     }
   } catch {
     // Ignore cache parse errors
   }
 
-  return [
-    {
-      id: 'g-1',
-      title: 'Review Q4 system architecture & sprint goals',
-      completed: false,
-      priority: 'high',
-      due: new Date(),
-      listTitle: 'Work Focus',
-    },
-    {
-      id: 'g-2',
-      title: 'Submit monthly financial expense audit',
-      completed: true,
-      priority: 'med',
-      due: null,
-      listTitle: 'Finance',
-    },
-    {
-      id: 'g-3',
-      title: 'Drink 2.5L water & 15m posture stretch',
-      completed: false,
-      priority: 'normal',
-      due: new Date(),
-      listTitle: 'Health',
-    },
-    {
-      id: 'g-4',
-      title: 'Order replacement HEPA filters',
-      completed: false,
-      priority: 'med',
-      due: null,
-      listTitle: 'Home',
-    },
-    {
-      id: 'g-5',
-      title: 'Read 2 chapters of "Designing Data-Intensive Applications"',
-      completed: false,
-      priority: 'normal',
-      due: null,
-      listTitle: 'Learning',
-    },
-  ];
+  // Strictly no mock tasks returned
+  return [];
 }
