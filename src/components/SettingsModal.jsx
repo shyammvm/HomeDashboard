@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { X, Save, HelpCircle, RotateCw, Globe, Calendar, DollarSign, User, Rss } from 'lucide-react';
+import { X, Save, RotateCw, Globe, Receipt, User, Rss, Clock, Navigation } from 'lucide-react';
 
 export default function SettingsModal({
   isOpen,
@@ -7,12 +7,14 @@ export default function SettingsModal({
   config,
   onSaveConfig,
 }) {
-  const [calendarUrl, setCalendarUrl] = useState(config.calendarUrl || '');
-  const [city, setCity] = useState(config.city || 'Chennai');
+  const [city, setCity] = useState(config.city || 'Your Location');
   const [userName, setUserName] = useState(config.userName || 'Shyam');
   const [currency, setCurrency] = useState(config.currency || '₹');
-  const [monthlyBudget, setMonthlyBudget] = useState(config.monthlyBudget || 40000);
+  const [expenseTrackerApiUrl, setExpenseTrackerApiUrl] = useState(
+    config.expenseTrackerApiUrl || 'https://smartexpensetracker-vtkb.onrender.com'
+  );
   const [rssUrl, setRssUrl] = useState(config.rssUrl || 'https://feeds.bbci.co.uk/news/world/rss.xml');
+  const [newsCycleSeconds, setNewsCycleSeconds] = useState(config.newsCycleSeconds || 35);
   const [rotation, setRotation] = useState(config.rotation || 0);
 
   if (!isOpen) return null;
@@ -20,12 +22,12 @@ export default function SettingsModal({
   const handleSubmit = (e) => {
     e.preventDefault();
     onSaveConfig({
-      calendarUrl,
       city,
       userName,
       currency,
-      monthlyBudget: Number(monthlyBudget),
+      expenseTrackerApiUrl,
       rssUrl,
+      newsCycleSeconds: Number(newsCycleSeconds) || 35,
       rotation: Number(rotation),
     });
     onClose();
@@ -33,13 +35,24 @@ export default function SettingsModal({
 
   return (
     <div className="modal-backdrop" onClick={onClose} role="dialog" aria-modal="true">
-      <div className="settings-modal-content" onClick={(e) => e.stopPropagation()}>
+      <div className="settings-modal-content stark-hud-card" onClick={(e) => e.stopPropagation()}>
+        <div className="stark-card-corner tl" />
+        <div className="stark-card-corner tr" />
+        <div className="stark-card-corner bl" />
+        <div className="stark-card-corner br" />
+
         <div className="modal-header">
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <h2 className="modal-title">Dashboard Settings</h2>
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span className="pulse-dot" style={{ backgroundColor: 'var(--stark-cyan)', width: 7, height: 7 }} />
+              <h2 className="modal-title stark-title">STARK IND. // CONFIGURATION</h2>
+            </div>
+            <div style={{ fontSize: 10, fontFamily: 'var(--font-mono)', color: 'var(--text-dim)', marginTop: 2, letterSpacing: '0.6px' }}>
+              J.A.R.V.I.S. M.K. 85 INTERFACE PARAMETERS
+            </div>
           </div>
           <button
-            className="icon-btn"
+            className="icon-btn stark-close-btn"
             onClick={onClose}
             aria-label="Close settings"
           >
@@ -64,42 +77,61 @@ export default function SettingsModal({
             />
           </div>
 
-          {/* Google Calendar iCal URL */}
+          {/* Weather, Traffic & Flight Radar Location */}
           <div className="setting-field">
-            <label className="setting-label" htmlFor="cfg-cal">
-              <Calendar size={13} style={{ display: 'inline', marginRight: 4 }} />
-              Google Calendar iCal (.ics) URL
-            </label>
-            <input
-              id="cfg-cal"
-              type="url"
-              className="setting-input"
-              value={calendarUrl}
-              onChange={(e) => setCalendarUrl(e.target.value)}
-              placeholder="https://calendar.google.com/calendar/ical/.../basic.ics"
-            />
-            <div className="setting-hint">
-              💡 In Google Calendar (Web): Click calendar settings ➔ Scroll to <strong>"Integrate calendar"</strong> ➔ Copy <strong>"Secret address in iCal format"</strong>.
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
+              <label className="setting-label" htmlFor="cfg-city" style={{ margin: 0 }}>
+                <Globe size={13} style={{ display: 'inline', marginRight: 4 }} />
+                Location (Weather, Traffic & Flight Radar)
+              </label>
+              <button
+                type="button"
+                className="mini-expand-text-btn"
+                onClick={async () => {
+                  if ('geolocation' in navigator) {
+                    navigator.geolocation.getCurrentPosition(
+                      async (pos) => {
+                        const { latitude: lat, longitude: lon } = pos.coords;
+                        try {
+                          const res = await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lon}&format=json`, {
+                            headers: { 'User-Agent': 'AetherDashboard/1.0' },
+                          });
+                          const data = await res.json();
+                          const suburb = data.address?.suburb || data.address?.neighbourhood || data.address?.city || data.address?.town;
+                          const state = data.address?.state;
+                          if (suburb) {
+                            setCity(state ? `${suburb}, ${state}` : suburb);
+                          } else {
+                            setCity(`${lat.toFixed(4)}, ${lon.toFixed(4)}`);
+                          }
+                        } catch {
+                          setCity(`${lat.toFixed(4)}, ${lon.toFixed(4)}`);
+                        }
+                      },
+                      (err) => alert('Unable to retrieve GPS coordinates: ' + err.message)
+                    );
+                  }
+                }}
+                title="Detect live GPS coordinates from your browser"
+              >
+                <Navigation size={10} />
+                <span>USE GPS LOCATION</span>
+              </button>
             </div>
-          </div>
-
-          {/* Weather Location */}
-          <div className="setting-field">
-            <label className="setting-label" htmlFor="cfg-city">
-              <Globe size={13} style={{ display: 'inline', marginRight: 4 }} />
-              Weather Location / City
-            </label>
             <input
               id="cfg-city"
               type="text"
               className="setting-input"
               value={city}
               onChange={(e) => setCity(e.target.value)}
-              placeholder="e.g. Chennai, Bangalore, London, New York"
+              placeholder="e.g. San Francisco, Tokyo, London, New York"
             />
+            <div style={{ fontSize: '10px', fontFamily: 'var(--font-mono)', color: 'var(--text-dim)', marginTop: 4 }}>
+              Syncs weather telemetry, live surface traffic map, and flight radar to this location.
+            </div>
           </div>
 
-          {/* Expense & Currency */}
+          {/* Currency & Expense Tracker Integration */}
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: 12 }}>
             <div className="setting-field">
               <label className="setting-label" htmlFor="cfg-curr">Currency</label>
@@ -117,17 +149,17 @@ export default function SettingsModal({
               </select>
             </div>
             <div className="setting-field">
-              <label className="setting-label" htmlFor="cfg-budget">
-                <DollarSign size={13} style={{ display: 'inline', marginRight: 4 }} />
-                Monthly Budget Limit
+              <label className="setting-label" htmlFor="cfg-expense-url">
+                <Receipt size={13} style={{ display: 'inline', marginRight: 4 }} />
+                Expense Tracker API
               </label>
               <input
-                id="cfg-budget"
-                type="number"
+                id="cfg-expense-url"
+                type="text"
                 className="setting-input"
-                value={monthlyBudget}
-                onChange={(e) => setMonthlyBudget(e.target.value)}
-                placeholder="40000"
+                value={expenseTrackerApiUrl}
+                onChange={(e) => setExpenseTrackerApiUrl(e.target.value)}
+                placeholder="https://smartexpensetracker-vtkb.onrender.com"
               />
             </div>
           </div>
@@ -146,6 +178,29 @@ export default function SettingsModal({
               onChange={(e) => setRssUrl(e.target.value)}
               placeholder="https://feeds.bbci.co.uk/news/world/rss.xml"
             />
+          </div>
+
+          {/* News Story Display Duration */}
+          <div className="setting-field">
+            <label className="setting-label" htmlFor="cfg-news-duration">
+              <Clock size={13} style={{ display: 'inline', marginRight: 4 }} />
+              News Story Display Duration
+            </label>
+            <select
+              id="cfg-news-duration"
+              className="setting-input"
+              value={newsCycleSeconds}
+              onChange={(e) => setNewsCycleSeconds(Number(e.target.value))}
+            >
+              <option value={20}>20 seconds (Fast)</option>
+              <option value={35}>35 seconds (Recommended - Great for photos)</option>
+              <option value={45}>45 seconds (Relaxed reading)</option>
+              <option value={60}>60 seconds (1 minute per story)</option>
+              <option value={90}>90 seconds (1.5 minutes per story)</option>
+            </select>
+            <div className="setting-hint">
+              Controls how long each news article and photo stay on screen before rotating.
+            </div>
           </div>
 
           {/* Screen Rotation Override */}

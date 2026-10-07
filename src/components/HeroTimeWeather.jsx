@@ -64,69 +64,90 @@ export default function HeroTimeWeather({ weatherData, userName = 'Shyam' }) {
   });
 
   return (
-    <section className="hero-time-row" aria-label="Clock and Weather">
-      {/* Clock Card */}
-      <div className="dash-card clock-card">
+    <section className="hero-time-row stark-hero-row" aria-label="Stark Chrono & Atmospheric Telemetry">
+      {/* Clock Card // Stark Chrono Telemetry */}
+      <div className="dash-card clock-card stark-hud-card">
+        <div className="stark-card-corner tl" />
+        <div className="stark-card-corner tr" />
+        <div className="stark-card-corner bl" />
+        <div className="stark-card-corner br" />
+
         <div>
           <div className="clock-greeting">
-            <span className="pulse-dot" style={{ backgroundColor: 'var(--accent-cyan)', boxShadow: '0 0 10px var(--accent-cyan)' }} />
-            {greeting}, {userName}
+            <span className="pulse-dot stark-dot" />
+            <span className="jarvis-tag">J.A.R.V.I.S. //</span> {greeting}, {userName}
           </div>
 
-          <div className="digital-time">
-            <span>{hours12}:{minutes}</span>
-            <span className="digital-seconds">{seconds}</span>
-            <span className="digital-ampm">{ampm}</span>
+          <div className="digital-time stark-digital-time">
+            <span className="time-digits">{hours12}:{minutes}</span>
+            <span className="digital-seconds stark-seconds">{seconds}</span>
+            <span className="digital-ampm stark-ampm">{ampm}</span>
           </div>
         </div>
 
-        <div className="full-date-display">
-          {dateFormatted}
+        <div>
+          <div className="full-date-display stark-date">
+            {dateFormatted}
+          </div>
+
+          {/* Stark System Diagnostics Micro-Bar */}
+          <div className="stark-diag-strip">
+            <span className="diag-item"><span className="label">ARC CORE:</span> <span className="val-cyan">100% NOMINAL</span></span>
+            <span className="diag-sep">•</span>
+            <span className="diag-item"><span className="label">NEURAL LINK:</span> <span className="val-gold">SYNCHRONIZED</span></span>
+            <span className="diag-sep">•</span>
+            <span className="diag-item"><span className="label">HUD PROTOCOL:</span> <span className="val-emerald">ACTIVE</span></span>
+          </div>
         </div>
       </div>
 
-      {/* Weather Card */}
-      <div className="dash-card weather-card">
+      {/* Weather Card // Atmospheric Sensor Array */}
+      <div className="dash-card weather-card stark-hud-card">
+        <div className="stark-card-corner tl" />
+        <div className="stark-card-corner tr" />
+        <div className="stark-card-corner bl" />
+        <div className="stark-card-corner br" />
+
         <div>
           <div className="weather-header">
-            <span className="weather-location">
-              <MapPin size={15} color="var(--accent-cyan)" />
-              {weatherData.city || 'Chennai'}
+            <span className="weather-location stark-location">
+              <MapPin size={14} color="var(--accent-cyan)" />
+              <span className="loc-text">{weatherData.city || 'Your Location'}</span>
             </span>
-            <span className="card-badge" style={{ color: 'var(--accent-cyan)' }}>LIVE METEO</span>
+            <span className="stark-badge">ATMOSPHERIC ARRAY // LIVE</span>
           </div>
 
           <div className="weather-temp-row">
             <div>
-              <div className="weather-big-temp">{weatherData.temp}°C</div>
-              <div className="weather-condition-desc">{weatherData.condition}</div>
+              <div className="weather-big-temp stark-temp">{weatherData.temp}°<span className="temp-unit">C</span></div>
+              <div className="weather-condition-desc stark-condition">{weatherData.condition}</div>
             </div>
-            <div style={{ padding: '8px', background: 'rgba(56, 189, 248, 0.08)', borderRadius: '16px' }}>
+            <div className="weather-icon-hud-container">
               <DynamicWeatherIcon iconName={weatherData.iconName} size={46} color="var(--accent-cyan)" />
             </div>
           </div>
         </div>
 
         <div>
-          <div className="weather-stats-grid">
-            <div className="weather-stat-item">
+          <div className="weather-stats-grid stark-stats-grid">
+            <div className="weather-stat-item stark-stat-box">
               <span className="weather-stat-label">
                 <Thermometer size={11} style={{ display: 'inline', marginRight: 3 }} />
-                Feels Like
+                THERMAL
               </span>
               <span className="weather-stat-val">{weatherData.feelsLike}°C</span>
             </div>
-            <div className="weather-stat-item">
+            <div className="weather-stat-item stark-stat-box">
               <span className="weather-stat-label">
                 <Droplets size={11} style={{ display: 'inline', marginRight: 3 }} />
-                Humidity
+                HUMIDITY
               </span>
               <span className="weather-stat-val">{weatherData.humidity}%</span>
             </div>
-            <div className="weather-stat-item">
+            <div className="weather-stat-item stark-stat-box">
               <span className="weather-stat-label">
                 <Wind size={11} style={{ display: 'inline', marginRight: 3 }} />
-                Wind
+                DOPPLER WIND
               </span>
               <span className="weather-stat-val">{weatherData.windSpeed} km/h</span>
             </div>
@@ -134,11 +155,11 @@ export default function HeroTimeWeather({ weatherData, userName = 'Shyam' }) {
 
           {/* 4-Day Forecast Strip */}
           {weatherData.forecast && weatherData.forecast.length > 0 && (
-            <div className="mini-forecast-strip">
+            <div className="mini-forecast-strip stark-forecast-strip">
               {weatherData.forecast.map((day, idx) => (
-                <div key={idx} className="forecast-day-col">
+                <div key={idx} className="forecast-day-col stark-forecast-col">
                   <span className="forecast-day-name">{day.day}</span>
-                  <DynamicWeatherIcon iconName={day.icon} size={18} color="var(--text-muted)" />
+                  <DynamicWeatherIcon iconName={day.icon} size={18} color="var(--accent-cyan)" />
                   <span className="forecast-day-temp">{day.max}°</span>
                 </div>
               ))}

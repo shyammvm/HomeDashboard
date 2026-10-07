@@ -1,58 +1,173 @@
-// Google Calendar & iCal Service (Works on GitHub Pages & Standalone)
+// Google Calendar & iCal Service (Current & Future Events Only)
+
+const CALENDAR_CACHE_KEY = 'aether_calendar_cache';
+
+/**
+ * Filter events to only keep current (happening now) and future events.
+ * Strips out any event whose end time is before the current moment.
+ */
+function filterCurrentAndFuture(events) {
+  const now = new Date();
+  return (events || [])
+    .filter(ev => {
+      if (!ev.endDate) return false;
+      const endD = ev.endDate instanceof Date ? ev.endDate : new Date(ev.endDate);
+      return !isNaN(endD.getTime()) && endD >= now;
+    })
+    .sort((a, b) => new Date(a.startDate) - new Date(b.startDate));
+}
+
+/**
+ * Saves real events to localStorage for offline resilience
+ */
+function cacheEventsLocally(events) {
+  try {
+    const serialized = (events || []).map(e => ({
+      ...e,
+      startDate: e.startDate instanceof Date ? e.startDate.toISOString() : e.startDate,
+      endDate: e.endDate instanceof Date ? e.endDate.toISOString() : e.endDate,
+    }));
+    localStorage.setItem(CALENDAR_CACHE_KEY, JSON.stringify(serialized));
+  } catch {
+    // Ignore storage errors
+  }
+}
+
+/**
+ * Loads cached real events (ignoring any expired past ones)
+ */
+function getCachedRealEvents() {
+  try {
+    const raw = localStorage.getItem(CALENDAR_CACHE_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    const hydrated = parsed.map(e => ({
+      ...e,
+      startDate: new Date(e.startDate),
+      endDate: new Date(e.endDate),
+    }));
+    return filterCurrentAndFuture(hydrated);
+  } catch {
+    return [];
+  }
+}
 
 export async function fetchCalendarEvents(calendarUrl) {
   if (!calendarUrl || calendarUrl.trim() === '') {
-    return getMockCalendarEvents();
+    return getCachedRealEvents();
   }
 
-  // 1. Try local/backend API proxy first (if running with Node server)
+  // 1. If this is a Google Apps Script Web App endpoint, fetch through sync proxy or direct
+  if (calendarUrl.includes('script.google.com')) {
+    // Try local / server sync proxy first (handles redirects and CORS reliably)
+    try {
+      const res = await fetch(`/api/sync?url=${encodeURIComponent(calendarUrl)}`);
+      if (res.ok) {
+        const data = await res.json();
+        if (data.events && Array.isArray(data.events)) {
+          const mapped = data.events.map(ev => ({
+            ...ev,
+            startDate: new Date(ev.start),
+            endDate: new Date(ev.end),
+          }));
+          const filtered = filterCurrentAndFuture(mapped);
+          cacheEventsLocally(filtered);
+          return filtered;
+        }
+      }
+    } catch (err) {
+      console.warn('Sync proxy calendar fetch failed, trying direct:', err.message);
+    }
+
+    // Try direct fetch
+    try {
+      const res = await fetch(calendarUrl);
+      if (res.ok) {
+        const data = await res.json();
+        if (data.events && Array.isArray(data.events)) {
+          const mapped = data.events.map(ev => ({
+            ...ev,
+            startDate: new Date(ev.start),
+            endDate: new Date(ev.end),
+          }));
+          const filtered = filterCurrentAndFuture(mapped);
+          cacheEventsLocally(filtered);
+          return filtered;
+        }
+      }
+    } catch (err) {
+      console.warn('Direct Apps Script calendar fetch failed:', err.message);
+    }
+  }
+
+  // 2. Try backend API proxy for iCal (.ics) URLs
   try {
     const res = await fetch(`/api/calendar?url=${encodeURIComponent(calendarUrl)}`);
     if (res.ok) {
       const data = await res.json();
-      if (data.events && data.events.length > 0) {
-        return data.events.map(ev => ({
+      if (data.events && Array.isArray(data.events)) {
+        const mapped = data.events.map(ev => ({
           ...ev,
-          startDate: new Date(ev.start),
-          endDate: new Date(ev.end),
+          startDate: new Date(ev.start || ev.startDate),
+          endDate: new Date(ev.end || ev.endDate),
         }));
+        const filtered = filterCurrentAndFuture(mapped);
+        cacheEventsLocally(filtered);
+        return filtered;
       }
     }
   } catch {
-    // API endpoint not found (e.g. static GitHub Pages hosting) -> continue to client-side CORS fetch
+    // Proxy not available
   }
 
-  // 2. Fetch directly via free public CORS proxy for GitHub Pages
+  // 3. Fallback direct / CORS proxy for standalone static hosting
   try {
     const proxyUrls = [
       `https://corsproxy.io/?url=${encodeURIComponent(calendarUrl)}`,
       `https://api.allorigins.win/raw?url=${encodeURIComponent(calendarUrl)}`,
     ];
 
-    let icsText = null;
     for (const pUrl of proxyUrls) {
       try {
         const response = await fetch(pUrl, { signal: AbortSignal.timeout(8000) });
         if (response.ok) {
-          icsText = await response.text();
-          if (icsText && icsText.includes('BEGIN:VCALENDAR')) {
-            break;
+          const text = await response.text();
+          if (text.includes('BEGIN:VCALENDAR')) {
+            const parsed = parseIcsString(text);
+            const filtered = filterCurrentAndFuture(parsed);
+            if (filtered.length > 0) {
+              cacheEventsLocally(filtered);
+              return filtered;
+            }
+          } else {
+            try {
+              const jsonData = JSON.parse(text);
+              if (jsonData.events && Array.isArray(jsonData.events)) {
+                const mapped = jsonData.events.map(ev => ({
+                  ...ev,
+                  startDate: new Date(ev.start || ev.startDate),
+                  endDate: new Date(ev.end || ev.endDate),
+                }));
+                const filtered = filterCurrentAndFuture(mapped);
+                cacheEventsLocally(filtered);
+                return filtered;
+              }
+            } catch {
+              // Not JSON
+            }
           }
         }
       } catch (err) {
-        console.warn('Proxy attempt failed:', pUrl, err);
+        console.warn('Proxy attempt failed:', pUrl, err.message);
       }
     }
-
-    if (icsText) {
-      const parsed = parseIcsString(icsText);
-      if (parsed.length > 0) return parsed;
-    }
   } catch (err) {
-    console.warn('Could not parse remote calendar, using local fallback:', err.message);
+    console.warn('Could not parse remote calendar:', err.message);
   }
 
-  return getMockCalendarEvents();
+  // No mock or placeholder events returned under any condition
+  return getCachedRealEvents();
 }
 
 /**
@@ -66,6 +181,8 @@ export function parseIcsString(icsContent) {
   const events = [];
   let inEvent = false;
   let currentEvent = {};
+  const now = new Date();
+  const futureLimit = new Date(now.getTime() + 60 * 24 * 60 * 60 * 1000);
 
   for (let line of lines) {
     line = line.trim();
@@ -77,14 +194,11 @@ export function parseIcsString(icsContent) {
     if (line === 'END:VEVENT') {
       inEvent = false;
       if (currentEvent.start) {
-        const now = new Date();
-        const pastLimit = new Date(now.getTime() - 24 * 60 * 60 * 1000);
-        const futureLimit = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
-
         const startDate = new Date(currentEvent.start);
         const endDate = currentEvent.end ? new Date(currentEvent.end) : new Date(startDate.getTime() + 3600000);
 
-        if (endDate >= pastLimit && startDate <= futureLimit) {
+        // Strictly current and future events: endDate must be >= now
+        if (endDate >= now && startDate <= futureLimit) {
           events.push({
             id: currentEvent.uid || `ev-${Math.random()}`,
             summary: currentEvent.summary || 'Scheduled Event',
@@ -102,7 +216,6 @@ export function parseIcsString(icsContent) {
 
     if (!inEvent) continue;
 
-    // Parse KEY:VALUE or KEY;PARAM=VAL:VALUE
     const colonIndex = line.indexOf(':');
     if (colonIndex === -1) continue;
 
@@ -139,7 +252,6 @@ function parseIcsDate(str, isDateOnly) {
     return new Date(year, month, day);
   }
 
-  // Format: YYYYMMDDTHHMMSS or YYYYMMDDTHHMMSSZ
   const clean = str.replace(/[^0-9T]/g, '');
   const parts = clean.split('T');
   if (parts.length === 2) {
@@ -211,78 +323,4 @@ export function isEventToday(date) {
     date.getMonth() === now.getMonth() &&
     date.getFullYear() === now.getFullYear()
   );
-}
-
-export function getMockCalendarEvents() {
-  const now = new Date();
-  const today = (hours, mins) => {
-    const d = new Date(now);
-    d.setHours(hours, mins, 0, 0);
-    return d;
-  };
-
-  const daysAhead = (offset, hours, mins) => {
-    const d = new Date(now);
-    d.setDate(d.getDate() + offset);
-    d.setHours(hours, mins, 0, 0);
-    return d;
-  };
-
-  return [
-    {
-      id: 'demo-1',
-      summary: 'Daily Engineering Standup',
-      description: 'Review sprints, roadmap blockers, and weekly deployments',
-      location: 'Google Meet',
-      startDate: today(10, 0),
-      endDate: today(10, 30),
-      allDay: false,
-      tag: 'Work',
-      color: 'var(--accent-cyan)',
-    },
-    {
-      id: 'demo-2',
-      summary: 'Design Review: Smart Home Ecosystem',
-      description: 'Review UI mockups for 1080x1920 ambient mirror display',
-      location: 'Conference Room B / Discord',
-      startDate: today(14, 0),
-      endDate: today(15, 0),
-      allDay: false,
-      tag: 'Design',
-      color: 'var(--accent-indigo)',
-    },
-    {
-      id: 'demo-3',
-      summary: 'Gym & Cardio Session',
-      description: 'Upper body and 5k run',
-      location: 'Fitness Center',
-      startDate: today(18, 30),
-      endDate: today(19, 45),
-      allDay: false,
-      tag: 'Personal',
-      color: 'var(--accent-emerald)',
-    },
-    {
-      id: 'demo-4',
-      summary: 'Monthly Financial Audit & Budgeting',
-      description: 'Review expense statements and investments',
-      location: 'Home Office',
-      startDate: daysAhead(1, 11, 0),
-      endDate: daysAhead(1, 12, 0),
-      allDay: false,
-      tag: 'Finance',
-      color: 'var(--accent-amber)',
-    },
-    {
-      id: 'demo-5',
-      summary: 'Weekend Dinner with Friends',
-      description: 'Rooftop dining',
-      location: 'Downtown Bistro',
-      startDate: daysAhead(3, 19, 30),
-      endDate: daysAhead(3, 22, 0),
-      allDay: false,
-      tag: 'Social',
-      color: 'var(--accent-rose)',
-    },
-  ];
 }

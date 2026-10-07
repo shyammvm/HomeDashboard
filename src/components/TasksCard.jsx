@@ -1,188 +1,191 @@
-import React, { useState, useEffect } from 'react';
-import { CheckSquare, Check, Plus, Trash2, ListTodo, Sparkles } from 'lucide-react';
+import React, { useState } from 'react';
+import { CheckSquare, Check, Sparkles, Tag, Calendar as CalIcon } from 'lucide-react';
 
-const DEFAULT_TASKS = [
-  { id: '1', title: 'Review Q4 system architecture doc', completed: false, priority: 'high' },
-  { id: '2', title: 'Submit quarterly budget variance report', completed: true, priority: 'med' },
-  { id: '3', title: 'Drink 2.5L water & 15m posture stretch', completed: false, priority: 'normal' },
-  { id: '4', title: 'Order replacement HEPA filters', completed: false, priority: 'med' },
-  { id: '5', title: 'Read 2 chapters of "Designing Data-Intensive Applications"', completed: false, priority: 'normal' },
-];
+export default function TasksCard({
+  tasks = [],
+  isSynced = false,
+}) {
+  const [filter, setFilter] = useState('all'); // all, pending, done
 
-export default function TasksCard() {
-  const [tasks, setTasks] = useState(() => {
-    try {
-      const saved = localStorage.getItem('aether_tasks');
-      return saved ? JSON.parse(saved) : DEFAULT_TASKS;
-    } catch {
-      return DEFAULT_TASKS;
-    }
-  });
+  const pendingTasks = (tasks || []).filter(t => !t.completed);
+  const doneTodayTasks = (tasks || []).filter(t => t.completed);
+  const totalToday = pendingTasks.length + doneTodayTasks.length;
+  const progressPercent = totalToday > 0 ? Math.round((doneTodayTasks.length / totalToday) * 100) : 0;
 
-  const [newTaskText, setNewTaskText] = useState('');
-  const [newPriority, setNewPriority] = useState('normal');
-  const [filter, setFilter] = useState('all'); // all, active, completed
-
-  useEffect(() => {
-    localStorage.setItem('aether_tasks', JSON.stringify(tasks));
-  }, [tasks]);
-
-  const toggleTask = (id) => {
-    setTasks(prev =>
-      prev.map(t => (t.id === id ? { ...t, completed: !t.completed } : t))
-    );
-  };
-
-  const addTask = (e) => {
-    e.preventDefault();
-    if (!newTaskText.trim()) return;
-    const newTask = {
-      id: Date.now().toString(),
-      title: newTaskText.trim(),
-      completed: false,
-      priority: newPriority,
-    };
-    setTasks(prev => [newTask, ...prev]);
-    setNewTaskText('');
-  };
-
-  const deleteTask = (e, id) => {
-    e.stopPropagation();
-    setTasks(prev => prev.filter(t => t.id !== id));
-  };
-
-  const completedCount = tasks.filter(t => t.completed).length;
-  const progressPercent = tasks.length > 0 ? Math.round((completedCount / tasks.length) * 100) : 0;
-
-  const filteredTasks = tasks.filter(t => {
-    if (filter === 'active') return !t.completed;
-    if (filter === 'completed') return t.completed;
+  const filteredTasks = (tasks || []).filter(t => {
+    if (filter === 'pending') return !t.completed;
+    if (filter === 'done') return t.completed;
     return true;
   });
 
+  const formatDueDate = (due) => {
+    if (!due) return null;
+    const d = new Date(due);
+    if (isNaN(d.getTime())) return null;
+    const now = new Date();
+    if (d.toDateString() === now.toDateString()) return 'Today';
+    const tomorrow = new Date(now);
+    tomorrow.setDate(now.getDate() + 1);
+    if (d.toDateString() === tomorrow.toDateString()) return 'Tomorrow';
+    return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+  };
+
   return (
-    <div className="dash-card tasks-card" role="region" aria-label="Tasks and To-Do">
+    <div className="dash-card tasks-card stark-hud-card" role="region" aria-label="Tasks and To-Do">
+      <div className="stark-card-corner tl" />
+      <div className="stark-card-corner tr" />
+      <div className="stark-card-corner bl" />
+      <div className="stark-card-corner br" />
+
       <div className="card-section-header">
         <div className="card-title-group">
           <div className="card-title-icon icon-tasks">
             <CheckSquare size={18} />
           </div>
           <div>
-            <h2 className="card-section-title">Daily Tasks & Focus</h2>
+            <h2 className="card-section-title">Directives & Tasks</h2>
           </div>
         </div>
-        <span className="card-badge" style={{ color: 'var(--accent-emerald)' }}>
-          {completedCount}/{tasks.length} DONE
+        <span
+          className="card-badge stark-badge"
+          style={{
+            color: 'var(--accent-emerald)',
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: 5,
+          }}
+        >
+          {isSynced && <span className="pulse-dot" style={{ backgroundColor: 'var(--accent-emerald)', width: 6, height: 6 }} />}
+          {isSynced ? 'GOOGLE TASKS' : 'TASK FEED'} • {doneTodayTasks.length}/{totalToday} DONE
         </span>
       </div>
 
-      {/* Progress Track */}
+      {/* Today's Progress Bar */}
       <div className="task-header-row">
         <div className="task-progress-track">
-          <div className="task-progress-fill" style={{ width: `${progressPercent}%` }} />
+          <div
+            className="task-progress-fill"
+            style={{
+              width: `${progressPercent}%`,
+              background: 'linear-gradient(90deg, var(--accent-emerald), var(--accent-cyan))',
+            }}
+          />
         </div>
-        <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--accent-emerald)', minWidth: 32, textAlign: 'right' }}>
+        <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--accent-emerald)', minWidth: 50, textAlign: 'right' }}>
           {progressPercent}%
         </span>
       </div>
 
       {/* Filter Tabs */}
       <div style={{ display: 'flex', gap: 6, marginBottom: 12 }}>
-        {['all', 'active', 'completed'].map((tab) => (
+        {[
+          { key: 'all', label: `All (${tasks.length})` },
+          { key: 'pending', label: `Pending (${pendingTasks.length})` },
+          { key: 'done', label: `Done Today (${doneTodayTasks.length})` },
+        ].map((tab) => (
           <button
-            key={tab}
-            onClick={() => setFilter(tab)}
+            key={tab.key}
+            onClick={() => setFilter(tab.key)}
             style={{
-              background: filter === tab ? 'rgba(52, 211, 153, 0.15)' : 'rgba(255, 255, 255, 0.03)',
-              color: filter === tab ? 'var(--accent-emerald)' : 'var(--text-dim)',
-              border: filter === tab ? '1px solid rgba(52, 211, 153, 0.3)' : '1px solid var(--border-subtle)',
+              background: filter === tab.key ? 'rgba(52, 211, 153, 0.15)' : 'rgba(255, 255, 255, 0.03)',
+              color: filter === tab.key ? 'var(--accent-emerald)' : 'var(--text-dim)',
+              border: filter === tab.key ? '1px solid rgba(52, 211, 153, 0.3)' : '1px solid var(--border-subtle)',
               borderRadius: 6,
               padding: '3px 9px',
               fontSize: 11,
               fontWeight: 600,
-              textTransform: 'capitalize',
               cursor: 'pointer',
             }}
           >
-            {tab}
+            {tab.label}
           </button>
         ))}
       </div>
 
-      {/* Task Items */}
+      {/* Task Items (View-Only Ambient List) */}
       <div className="task-list custom-scroll">
         {filteredTasks.length === 0 ? (
           <div style={{ textAlign: 'center', padding: '24px 0', color: 'var(--text-dim)', fontSize: 12.5 }}>
             <Sparkles size={20} style={{ margin: '0 auto 6px', opacity: 0.5 }} />
-            No tasks found in this view.
+            {filter === 'done' ? 'No tasks completed yet today.' : 'No tasks in this view.'}
           </div>
         ) : (
-          filteredTasks.map((t) => (
-            <div
-              key={t.id}
-              className={`task-item ${t.completed ? 'completed' : ''}`}
-              onClick={() => toggleTask(t.id)}
-            >
-              <div className="task-left">
-                <div className="task-checkbox">
-                  {t.completed && <Check size={13} strokeWidth={3} />}
-                </div>
-                <span className="task-text">{t.title}</span>
-              </div>
+          filteredTasks.map((t) => {
+            const dueStr = formatDueDate(t.due);
+            const isDone = Boolean(t.completed);
 
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                {t.priority === 'high' && <span className="task-priority-tag priority-high">High</span>}
-                {t.priority === 'med' && <span className="task-priority-tag priority-med">Med</span>}
-                <button
-                  onClick={(e) => deleteTask(e, t.id)}
-                  style={{
-                    background: 'transparent',
-                    border: 'none',
-                    color: 'var(--text-dim)',
-                    cursor: 'pointer',
-                    padding: 4,
+            return (
+              <div
+                key={t.id}
+                className={`task-item ${isDone ? 'completed' : ''}`}
+                style={{
+                  cursor: 'default',
+                  opacity: isDone ? 0.65 : 1,
+                  background: isDone ? 'rgba(52, 211, 153, 0.04)' : undefined,
+                }}
+              >
+                <div className="task-left">
+                  {/* Status Indicator */}
+                  <div style={{
+                    width: 16,
+                    height: 16,
+                    borderRadius: '50%',
+                    border: isDone ? '1.5px solid var(--accent-emerald)' : '1.5px solid rgba(52, 211, 153, 0.5)',
+                    backgroundColor: isDone ? 'rgba(52, 211, 153, 0.2)' : 'transparent',
                     display: 'flex',
-                  }}
-                  title="Delete Task"
-                >
-                  <Trash2 size={13} />
-                </button>
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    flexShrink: 0,
+                    marginRight: 6,
+                  }}>
+                    {isDone ? (
+                      <Check size={11} color="var(--accent-emerald)" strokeWidth={3} />
+                    ) : (
+                      <span style={{ width: 4, height: 4, borderRadius: '50%', backgroundColor: 'var(--accent-emerald)' }} />
+                    )}
+                  </div>
+
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+                    <span
+                      className="task-text"
+                      style={{
+                        textDecoration: isDone ? 'line-through' : 'none',
+                        color: isDone ? 'var(--text-muted)' : '#fff',
+                      }}
+                    >
+                      {t.title}
+                    </span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 10, color: 'var(--text-dim)' }}>
+                      {t.listTitle && (
+                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3, opacity: 0.8 }}>
+                          <Tag size={10} color="var(--accent-emerald)" />
+                          {t.listTitle}
+                        </span>
+                      )}
+                      {dueStr && (
+                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3, color: 'var(--accent-amber)' }}>
+                          <CalIcon size={10} />
+                          {dueStr}
+                        </span>
+                      )}
+                      {isDone && (
+                        <span style={{ color: 'var(--accent-emerald)', fontWeight: 600 }}>
+                          DONE TODAY
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  {!isDone && t.priority === 'high' && <span className="task-priority-tag priority-high">High</span>}
+                  {!isDone && t.priority === 'med' && <span className="task-priority-tag priority-med">Med</span>}
+                </div>
               </div>
-            </div>
-          ))
+            );
+          })
         )}
       </div>
-
-      {/* Add Task Input Bar */}
-      <form onSubmit={addTask} className="task-input-bar">
-        <input
-          type="text"
-          className="task-input-box"
-          placeholder="Add new task or action item..."
-          value={newTaskText}
-          onChange={(e) => setNewTaskText(e.target.value)}
-        />
-        <select
-          value={newPriority}
-          onChange={(e) => setNewPriority(e.target.value)}
-          style={{
-            background: 'rgba(0,0,0,0.4)',
-            border: '1px solid var(--border-subtle)',
-            borderRadius: 8,
-            color: 'var(--text-muted)',
-            fontSize: 12,
-            padding: '0 6px',
-            outline: 'none',
-          }}
-        >
-          <option value="normal">Normal</option>
-          <option value="med">Medium</option>
-          <option value="high">High</option>
-        </select>
-        <button type="submit" className="task-add-btn" aria-label="Add task">
-          <Plus size={16} />
-        </button>
-      </form>
     </div>
   );
 }

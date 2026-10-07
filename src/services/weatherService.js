@@ -26,8 +26,48 @@ export const WMO_WEATHER_CODES = {
 };
 
 export async function fetchCoordinatesForCity(city) {
+  if (!city) return null;
+  const clean = city.trim();
+
+  // Direct coordinate match (e.g. "12.9716, 77.5946" or "12.9716,77.5946")
+  const coordMatch = clean.match(/^([-+]?[0-9]*\.?[0-9]+)\s*,\s*([-+]?[0-9]*\.?[0-9]+)$/);
+  if (coordMatch) {
+    const lat = parseFloat(coordMatch[1]);
+    const lon = parseFloat(coordMatch[2]);
+    if (!isNaN(lat) && !isNaN(lon) && lat >= -90 && lat <= 90 && lon >= -180 && lon <= 180) {
+      return {
+        name: `${lat.toFixed(3)}, ${lon.toFixed(3)}`,
+        country: '',
+        lat,
+        lon,
+      };
+    }
+  }
+
+  const lower = clean.toLowerCase();
+
+  // Known neighborhood shortcut for Whitefield, Bangalore
+  if (lower.includes('whitefield')) {
+    return {
+      name: 'Whitefield',
+      country: 'IN',
+      lat: 12.9716,
+      lon: 77.7473,
+    };
+  }
+
+  if (lower.includes('bangalore') || lower.includes('bengaluru')) {
+    return {
+      name: 'Bangalore',
+      country: 'IN',
+      lat: 12.9716,
+      lon: 77.5946,
+    };
+  }
+
   try {
-    const res = await fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(city)}&count=1&language=en&format=json`);
+    const searchName = clean.includes(',') ? clean.split(',')[0].trim() : clean.trim();
+    const res = await fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(searchName)}&count=5&language=en&format=json`);
     const data = await res.json();
     if (data.results && data.results.length > 0) {
       const top = data.results[0];
@@ -44,7 +84,31 @@ export async function fetchCoordinatesForCity(city) {
   return null;
 }
 
-export async function fetchWeatherData(lat = 13.0827, lon = 80.2707, cityName = 'Chennai') {
+export async function reverseGeocodeCoordinates(lat, lon) {
+  try {
+    const res = await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lon}&format=json`, {
+      headers: { 'User-Agent': 'HomeDashboardApp/1.0' },
+      signal: AbortSignal.timeout(4000),
+    });
+    if (res.ok) {
+      const data = await res.json();
+      const addr = data.address || {};
+      const locality = addr.suburb || addr.neighbourhood || addr.quarter || addr.city_district || addr.city || addr.town || addr.village;
+      const stateOrCity = addr.city || addr.county || addr.state_district || addr.state || '';
+      if (locality && stateOrCity && locality !== stateOrCity) {
+        return `${locality}, ${stateOrCity}`;
+      }
+      if (locality) return locality;
+      if (stateOrCity) return stateOrCity;
+      if (data.display_name) return data.display_name.split(',').slice(0, 2).join(',').trim();
+    }
+  } catch (err) {
+    console.warn('Reverse geocoding error:', err);
+  }
+  return `${lat.toFixed(3)}, ${lon.toFixed(3)}`;
+}
+
+export async function fetchWeatherData(lat = 12.9716, lon = 77.7473, cityName = 'Your Location') {
   try {
     const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,relative_humidity_2m,apparent_temperature,is_day,precipitation,weather_code,wind_speed_10m&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max&timezone=auto`;
     const res = await fetch(url);

@@ -1,41 +1,68 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import AmbientBackground from './components/AmbientBackground';
-import HeaderBar from './components/HeaderBar';
+import StarkHudBar from './components/StarkHudBar';
 import HeroTimeWeather from './components/HeroTimeWeather';
-import QuoteBanner from './components/QuoteBanner';
 import CalendarCard from './components/CalendarCard';
 import TasksCard from './components/TasksCard';
 import ExpenseTrackerCard from './components/ExpenseTrackerCard';
-import NewsTickerCard from './components/NewsTickerCard';
+import BangaloreTrafficView from './components/BangaloreTrafficView';
+import StarkTacticalDeck from './components/StarkTacticalDeck';
+import RadarCard from './components/RadarCard';
 import SettingsModal from './components/SettingsModal';
 
-import { fetchWeatherData, fetchCoordinatesForCity } from './services/weatherService';
+import { DASHBOARD_CONFIG } from './config';
+import {
+  fetchWeatherData,
+  fetchCoordinatesForCity,
+  reverseGeocodeCoordinates,
+} from './services/weatherService';
 import { fetchCalendarEvents } from './services/calendarService';
+import { fetchGoogleTasks } from './services/tasksService';
 import { fetchRssFeed } from './services/rssService';
 
 const DEFAULT_CONFIG = {
-  userName: 'Shyam',
-  city: 'Chennai',
-  calendarUrl: '',
-  currency: '₹',
-  monthlyBudget: 40000,
-  rssUrl: 'https://feeds.bbci.co.uk/news/world/rss.xml',
-  rotation: 0,
+  userName: DASHBOARD_CONFIG.userName || 'Shyam',
+  city: DASHBOARD_CONFIG.city || 'Your Location',
+  currency: DASHBOARD_CONFIG.currency || '₹',
+  expenseTrackerApiUrl: DASHBOARD_CONFIG.expenseTrackerApiUrl || 'https://smartexpensetracker-vtkb.onrender.com',
+  expenseTrackerSecret: DASHBOARD_CONFIG.expenseTrackerSecret || '2546698',
+  rssUrl: DASHBOARD_CONFIG.rssUrl || 'https://feeds.bbci.co.uk/news/world/rss.xml',
+  newsCycleSeconds: DASHBOARD_CONFIG.newsCycleSeconds || 35,
+  rotation: DASHBOARD_CONFIG.rotation || 0,
 };
 
 export default function App() {
   const [config, setConfig] = useState(() => {
     try {
       const saved = localStorage.getItem('aether_config');
-      return saved ? { ...DEFAULT_CONFIG, ...JSON.parse(saved) } : DEFAULT_CONFIG;
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed.city === 'Chennai') parsed.city = 'Your Location';
+        return { ...DEFAULT_CONFIG, ...parsed };
+      }
+      return DEFAULT_CONFIG;
     } catch {
       return DEFAULT_CONFIG;
     }
   });
 
+  // Centralized user location state (anchoring Weather, Traffic, & Flight Radar)
+  const [userLocation, setUserLocation] = useState(() => {
+    try {
+      const saved = localStorage.getItem('aether_user_location');
+      if (saved) return JSON.parse(saved);
+    } catch { }
+    return {
+      lat: 12.9716,
+      lon: 77.7473,
+      cityName: config?.city || 'Your Location',
+      isGps: false,
+    };
+  });
+
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [weatherData, setWeatherData] = useState({
-    city: config.city,
+    city: userLocation?.cityName || config.city,
     temp: 29,
     feelsLike: 32,
     humidity: 68,
@@ -45,27 +72,93 @@ export default function App() {
     forecast: [],
   });
   const [calendarEvents, setCalendarEvents] = useState([]);
+  const [tasks, setTasks] = useState([]);
+  const [isTasksSynced, setIsTasksSynced] = useState(false);
   const [newsArticles, setNewsArticles] = useState([]);
   const [isCalendarLive, setIsCalendarLive] = useState(false);
+  const [expenseRefreshTrigger, setExpenseRefreshTrigger] = useState(0);
+  const [activeView, setActiveView] = useState('all'); // 'all', 'radar', or 'traffic'
 
-  // Load weather
-  const loadWeather = useCallback(async (cityName) => {
-    const geo = await fetchCoordinatesForCity(cityName || config.city);
-    if (geo) {
-      const data = await fetchWeatherData(geo.lat, geo.lon, geo.name);
+  // Sync URLs from config
+  const syncUrl = DASHBOARD_CONFIG.googleSyncUrl;
+  const effectiveCalendarUrl = syncUrl || DASHBOARD_CONFIG.defaultCalendarUrl || '';
+
+  // Load weather for location
+  const loadWeather = useCallback(async (targetLoc) => {
+    const loc = targetLoc || userLocation;
+    if (loc?.lat && loc?.lon) {
+      const data = await fetchWeatherData(loc.lat, loc.lon, loc.cityName || config.city);
       setWeatherData(data);
     } else {
-      const data = await fetchWeatherData(13.0827, 80.2707, cityName || 'Chennai');
-      setWeatherData(data);
+      const geo = await fetchCoordinatesForCity(config.city);
+      if (geo) {
+        const data = await fetchWeatherData(geo.lat, geo.lon, geo.name);
+        setWeatherData(data);
+      }
     }
-  }, [config.city]);
+  }, [userLocation, config.city]);
+
+  // Synchronize location via GPS or configured city
+  const syncLocation = useCallback(async (overrideCity) => {
+    if (overrideCity) {
+      const geo = await fetchCoordinatesForCity(overrideCity);
+      if (geo) {
+        const newLoc = { lat: geo.lat, lon: geo.lon, cityName: geo.name, isGps: false };
+        setUserLocation(newLoc);
+        localStorage.setItem('aether_user_location', JSON.stringify(newLoc));
+        loadWeather(newLoc);
+        return;
+      }
+    }
+
+    // Attempt browser GPS geolocation
+    if (typeof navigator !== 'undefined' && 'geolocation' in navigator) {
+      navigator.geolocation.getCurrentPosition(
+        async (pos) => {
+          const { latitude: lat, longitude: lon } = pos.coords;
+          let cityName = await reverseGeocodeCoordinates(lat, lon);
+          if (!cityName) cityName = `${lat.toFixed(3)}, ${lon.toFixed(3)}`;
+          const newLoc = { lat, lon, cityName, isGps: true };
+          setUserLocation(newLoc);
+          localStorage.setItem('aether_user_location', JSON.stringify(newLoc));
+          loadWeather(newLoc);
+        },
+        async () => {
+          // Geolocation denied or unavailable: fall back to configured city
+          const geo = await fetchCoordinatesForCity(config.city);
+          if (geo) {
+            const newLoc = { lat: geo.lat, lon: geo.lon, cityName: geo.name, isGps: false };
+            setUserLocation(newLoc);
+            localStorage.setItem('aether_user_location', JSON.stringify(newLoc));
+            loadWeather(newLoc);
+          }
+        },
+        { enableHighAccuracy: true, timeout: 6000, maximumAge: 300000 }
+      );
+    } else {
+      const geo = await fetchCoordinatesForCity(config.city);
+      if (geo) {
+        const newLoc = { lat: geo.lat, lon: geo.lon, cityName: geo.name, isGps: false };
+        setUserLocation(newLoc);
+        localStorage.setItem('aether_user_location', JSON.stringify(newLoc));
+        loadWeather(newLoc);
+      }
+    }
+  }, [config.city, loadWeather]);
 
   // Load calendar
-  const loadCalendar = useCallback(async (url) => {
-    const events = await fetchCalendarEvents(url !== undefined ? url : config.calendarUrl);
+  const loadCalendar = useCallback(async () => {
+    const events = await fetchCalendarEvents(effectiveCalendarUrl);
     setCalendarEvents(events);
-    setIsCalendarLive(Boolean(url || config.calendarUrl));
-  }, [config.calendarUrl]);
+    setIsCalendarLive(Boolean(effectiveCalendarUrl));
+  }, [effectiveCalendarUrl]);
+
+  // Load Google tasks
+  const loadTasks = useCallback(async () => {
+    const result = await fetchGoogleTasks(syncUrl);
+    setTasks(result.tasks);
+    setIsTasksSynced(result.isSynced);
+  }, [syncUrl]);
 
   // Load news
   const loadNews = useCallback(async (feedUrl) => {
@@ -75,47 +168,46 @@ export default function App() {
 
   // Initial load
   useEffect(() => {
-    loadWeather(config.city);
-    loadCalendar(config.calendarUrl);
+    syncLocation();
+    loadCalendar();
+    loadTasks();
     loadNews(config.rssUrl);
-  }, [config.city, config.calendarUrl, config.rssUrl, loadWeather, loadCalendar, loadNews]);
+  }, [syncLocation, loadCalendar, loadTasks, loadNews, config.rssUrl]);
 
   // Periodic Auto-refresh intervals for 24x7 unattended operation
   useEffect(() => {
-    const weatherTimer = setInterval(() => loadWeather(config.city), 15 * 60 * 1000); // 15 mins
-    const calendarTimer = setInterval(() => loadCalendar(config.calendarUrl), 10 * 60 * 1000); // 10 mins
+    const weatherTimer = setInterval(() => loadWeather(userLocation), 15 * 60 * 1000); // 15 mins
+    const calendarTimer = setInterval(() => loadCalendar(), 10 * 60 * 1000); // 10 mins
+    const tasksTimer = setInterval(() => loadTasks(), 5 * 60 * 1000); // 5 mins
     const newsTimer = setInterval(() => loadNews(config.rssUrl), 30 * 60 * 1000); // 30 mins
+    const expenseTimer = setInterval(() => setExpenseRefreshTrigger(prev => prev + 1), 3 * 60 * 1000); // 3 mins
 
     return () => {
       clearInterval(weatherTimer);
       clearInterval(calendarTimer);
+      clearInterval(tasksTimer);
       clearInterval(newsTimer);
+      clearInterval(expenseTimer);
     };
-  }, [config.city, config.calendarUrl, config.rssUrl, loadWeather, loadCalendar, loadNews]);
+  }, [userLocation, config.rssUrl, loadWeather, loadCalendar, loadTasks, loadNews]);
 
   // Save config
   const handleSaveConfig = (newConfig) => {
     setConfig(newConfig);
     localStorage.setItem('aether_config', JSON.stringify(newConfig));
-    if (newConfig.city !== config.city) loadWeather(newConfig.city);
-    if (newConfig.calendarUrl !== config.calendarUrl) loadCalendar(newConfig.calendarUrl);
+    if (newConfig.city !== config.city) {
+      syncLocation(newConfig.city);
+    }
     if (newConfig.rssUrl !== config.rssUrl) loadNews(newConfig.rssUrl);
-  };
-
-  // Screen rotation cycle
-  const handleRotateCycle = () => {
-    const rotations = [0, 90, 180, 270];
-    const nextIdx = (rotations.indexOf(config.rotation) + 1) % rotations.length;
-    const nextRot = rotations[nextIdx];
-    const updated = { ...config, rotation: nextRot };
-    setConfig(updated);
-    localStorage.setItem('aether_config', JSON.stringify(updated));
+    setExpenseRefreshTrigger(prev => prev + 1);
   };
 
   const handleRefreshAll = () => {
-    loadWeather(config.city);
-    loadCalendar(config.calendarUrl);
+    syncLocation();
+    loadCalendar();
+    loadTasks();
     loadNews(config.rssUrl);
+    setExpenseRefreshTrigger(prev => prev + 1);
   };
 
   const rotationClass = config.rotation ? `rotate-${config.rotation}` : '';
@@ -125,50 +217,73 @@ export default function App() {
       <AmbientBackground />
 
       <main className={`dashboard-viewport ${rotationClass}`} id="dashboard-root">
-        {/* Top Status & Controls */}
-        <HeaderBar
-          rotation={config.rotation}
-          onRotate={handleRotateCycle}
+        {/* Stark Industries Tactical HUD Telemetry Bar */}
+        <StarkHudBar
           onOpenSettings={() => setIsSettingsOpen(true)}
           onRefreshAll={handleRefreshAll}
+          activeView={activeView}
+          onSelectView={setActiveView}
+          userName={config.userName}
         />
 
-        {/* Hero Clock & Live Weather */}
+        {/* Hero Clock & Live Weather (anchored to user's location) */}
         <HeroTimeWeather
           weatherData={weatherData}
           userName={config.userName}
         />
 
-        {/* Daily Quote / Affirmation */}
-        <QuoteBanner />
-
-        {/* 2-Column Split: Calendar & Tasks on Left | Expenses & News on Right */}
-        <div className="dashboard-grid-main">
-          {/* Left Column: Agenda & Focus */}
-          <div className="dashboard-column">
-            <CalendarCard events={calendarEvents} isLive={isCalendarLive} />
-            <TasksCard />
+        {/* Tactical Airspace & Cloud Radar (anchored to user's location) */}
+        {activeView === 'radar' && (
+          <div style={{ animation: 'fadeIn 0.3s ease' }}>
+            <RadarCard userLocation={userLocation} />
           </div>
+        )}
 
-          {/* Right Column: Finance & World */}
-          <div className="dashboard-column">
-            <ExpenseTrackerCard
-              currency={config.currency}
-              monthlyBudget={config.monthlyBudget}
+        {/* Tactical Surface Traffic & Normal Google Map View (anchored to user's location) */}
+        {activeView === 'traffic' && (
+          <div style={{ animation: 'fadeIn 0.3s ease' }}>
+            <BangaloreTrafficView
+              onBack={() => setActiveView('all')}
+              userLocation={userLocation}
             />
-            <NewsTickerCard newsArticles={newsArticles} />
           </div>
-        </div>
+        )}
 
-        {/* Bottom Ambient Bar */}
-        <footer className="bottom-ambient-bar">
-          <div>
-            PORTRAIT DISPLAY MODE • 1080×1920 OPTIMIZED • ACTIVE KIOSK
-          </div>
-          <div>
-            AETHER OS • 24×7 TELEMETRY ENGINE
-          </div>
-        </footer>
+        {/* Full Dashboard Overview */}
+        {activeView === 'all' && (
+          <>
+            {/* Full-Width Tactical Console (Radar, Normal Google Traffic Map & News Looping Slides) */}
+            <StarkTacticalDeck
+              newsArticles={newsArticles}
+              onExpandRadar={() => setActiveView('radar')}
+              onExpandTraffic={() => setActiveView('traffic')}
+              cycleSeconds={config.newsCycleSeconds || 16}
+              userLocation={userLocation}
+            />
+
+            {/* 2-Column Split: Schedule & Tasks on Left | Expenses on Right */}
+            <div className="dashboard-grid-main">
+              {/* Left Column: Agenda & Focus */}
+              <div className="dashboard-column">
+                <CalendarCard events={calendarEvents} isLive={isCalendarLive} />
+                <TasksCard
+                  tasks={tasks}
+                  isSynced={isTasksSynced}
+                />
+              </div>
+
+              {/* Right Column: Finance */}
+              <div className="dashboard-column">
+                <ExpenseTrackerCard
+                  currency={config.currency}
+                  apiUrl={config.expenseTrackerApiUrl}
+                  secret={config.expenseTrackerSecret}
+                  refreshTrigger={expenseRefreshTrigger}
+                />
+              </div>
+            </div>
+          </>
+        )}
       </main>
 
       {/* Settings Modal */}

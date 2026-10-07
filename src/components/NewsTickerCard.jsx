@@ -1,12 +1,21 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Newspaper, ChevronLeft, ChevronRight, ExternalLink } from 'lucide-react';
+import {
+  Newspaper,
+  ChevronLeft,
+  ChevronRight,
+  Play,
+  Pause,
+  ExternalLink,
+  Clock,
+  Globe,
+} from 'lucide-react';
 
-const CYCLE_TIME_MS = 12000;
-
-export default function NewsTickerCard({ newsArticles = [] }) {
+export default function NewsTickerCard({ newsArticles = [], cycleSeconds = 35 }) {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [progress, setProgress] = useState(0);
-  const [isPaused, setIsPaused] = useState(false);
+  const [isHovered, setIsHovered] = useState(false);
+  const [isManuallyPaused, setIsManuallyPaused] = useState(false);
+  const [imageError, setImageError] = useState(false);
   const intervalRef = useRef(null);
 
   const total = newsArticles.length;
@@ -14,13 +23,26 @@ export default function NewsTickerCard({ newsArticles = [] }) {
     title: 'Loading global news feeds...',
     source: 'World News',
     snippet: '',
+    link: '#',
+    timeAgo: 'Live',
+    imageUrl: null,
+    category: 'HEADLINES',
   };
 
+  const cycleTimeMs = Math.max(5000, (cycleSeconds || 35) * 1000);
+  const isPaused = isHovered || isManuallyPaused;
+
+  // Reset image error state whenever current story changes
+  useEffect(() => {
+    setImageError(false);
+  }, [currentIndex]);
+
+  // Main story rotation timer
   useEffect(() => {
     if (total <= 1 || isPaused) return;
 
     const stepMs = 100;
-    const increment = (stepMs / CYCLE_TIME_MS) * 100;
+    const increment = (stepMs / cycleTimeMs) * 100;
 
     intervalRef.current = setInterval(() => {
       setProgress((prev) => {
@@ -33,79 +55,210 @@ export default function NewsTickerCard({ newsArticles = [] }) {
     }, stepMs);
 
     return () => clearInterval(intervalRef.current);
-  }, [total, isPaused, currentIndex]);
+  }, [total, isPaused, cycleTimeMs, currentIndex]);
 
-  const handlePrev = () => {
+  const handlePrev = (e) => {
+    if (e) e.stopPropagation();
     setProgress(0);
     setCurrentIndex((old) => (old - 1 + total) % total);
   };
 
-  const handleNext = () => {
+  const handleNext = (e) => {
+    if (e) e.stopPropagation();
     setProgress(0);
     setCurrentIndex((old) => (old + 1) % total);
   };
 
+  const handleTogglePause = (e) => {
+    if (e) e.stopPropagation();
+    setIsManuallyPaused((prev) => !prev);
+  };
+
+  const handleDotClick = (index) => {
+    setProgress(0);
+    setCurrentIndex(index);
+  };
+
+  const hasPhoto = current.imageUrl && !imageError;
+
   return (
     <div
-      className="dash-card rss-news-card"
+      className="dash-card rss-news-card stark-hud-card"
       role="region"
-      aria-label="News ticker"
-      onMouseEnter={() => setIsPaused(true)}
-      onMouseLeave={() => setIsPaused(false)}
+      aria-label="Live News & Feeds"
+      onMouseEnter={() => setIsHovered(true)}
+      onMouseLeave={() => setIsHovered(false)}
     >
-      <div>
-        <div className="card-section-header">
-          <div className="card-title-group">
-            <div className="card-title-icon icon-news">
-              <Newspaper size={18} />
-            </div>
-            <div>
-              <h2 className="card-section-title">Live News & Feeds</h2>
-            </div>
+      <div className="stark-card-corner tl" />
+      <div className="stark-card-corner tr" />
+      <div className="stark-card-corner bl" />
+      <div className="stark-card-corner br" />
+
+      {/* Card Header */}
+      <div className="card-section-header" style={{ marginBottom: 14 }}>
+        <div className="card-title-group">
+          <div className="card-title-icon icon-news">
+            <Newspaper size={18} />
           </div>
-          <span className="card-badge" style={{ color: 'var(--accent-purple)' }}>
-            HEADLINES
-          </span>
+          <div>
+            <h2 className="card-section-title">Satellite Intercept // World</h2>
+          </div>
         </div>
 
-        <div className="news-article-preview">
-          <div className="news-source-tag">
-            <span className="pulse-dot" style={{ backgroundColor: 'var(--accent-purple)' }} />
-            {current.source}
-          </div>
-          <div className="news-headline">{current.title}</div>
-          {current.snippet && <p className="news-snippet">{current.snippet}</p>}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          {isManuallyPaused ? (
+            <span className="card-badge news-paused-badge">
+              <Pause size={10} style={{ marginRight: 4 }} />
+              PAUSED
+            </span>
+          ) : (
+            <span className="card-badge news-live-badge">
+              <span className="pulse-dot" style={{ backgroundColor: 'var(--accent-purple)' }} />
+              LIVE FEED
+            </span>
+          )}
+          <span className="news-counter-pill">
+            {total > 0 ? `${currentIndex + 1} / ${total}` : '0 / 0'}
+          </span>
         </div>
       </div>
 
-      <div>
-        {/* Progress Bar indicating time to next story */}
-        <div className="news-progress-bar">
-          <div className="news-progress-fill" style={{ width: `${progress}%` }} />
+      {/* Main Content Area */}
+      <div className="news-content-body">
+        {/* Large Featured Photo Hero */}
+        <div className="news-hero-media">
+          {hasPhoto ? (
+            <img
+              key={`img-${currentIndex}-${current.imageUrl}`}
+              src={current.imageUrl}
+              alt={current.title}
+              className="news-hero-img"
+              loading="eager"
+              onError={() => setImageError(true)}
+            />
+          ) : (
+            <div className="news-hero-fallback">
+              <div className="news-hero-fallback-bg" />
+              <Globe size={48} className="news-fallback-icon" />
+            </div>
+          )}
+
+          {/* Vignette Gradients */}
+          <div className="news-hero-scrim-top" />
+          <div className="news-hero-scrim-bottom" />
+
+          {/* Overlaid Badges on Photo */}
+          <div className="news-hero-overlay-tags">
+            <div className="news-source-badge">
+              <span className="pulse-dot" style={{ backgroundColor: '#c084fc', width: 6, height: 6 }} />
+              {current.source || 'World News'}
+            </div>
+
+            {current.category && (
+              <span className="news-category-badge">
+                {current.category}
+              </span>
+            )}
+          </div>
+
+          {current.timeAgo && (
+            <div className="news-time-tag">
+              <Clock size={11} />
+              {current.timeAgo}
+            </div>
+          )}
         </div>
 
+        {/* Text Story Section */}
+        <div className="news-text-block">
+          <a
+            href={current.link && current.link !== '#' ? current.link : undefined}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="news-headline-link"
+            title="Open original news article"
+          >
+            <h3 className="news-headline-large">{current.title}</h3>
+          </a>
+
+          {current.snippet && (
+            <p className="news-snippet-large">{current.snippet}</p>
+          )}
+        </div>
+      </div>
+
+      {/* Bottom Footer: Progress Bar & Controls */}
+      <div className="news-footer-container">
+        {/* Progress Bar indicating time left before rotating */}
+        <div
+          className="news-progress-bar"
+          title={`${Math.round(((100 - progress) / 100) * (cycleSeconds || 35))}s remaining`}
+        >
+          <div
+            className={`news-progress-fill ${isPaused ? 'is-paused' : ''}`}
+            style={{ width: `${progress}%` }}
+          />
+        </div>
+
+        {/* Navigation & Action Bar */}
         <div className="news-nav-row">
-          <span className="news-counter">
-            Story {currentIndex + 1} of {total}
-          </span>
-          <div style={{ display: 'flex', gap: 6 }}>
+          {/* Quick story dots (up to 10) */}
+          <div className="news-dots-group">
+            {total > 1 &&
+              Array.from({ length: Math.min(total, 8) }).map((_, idx) => (
+                <button
+                  key={idx}
+                  className={`news-dot-btn ${idx === currentIndex ? 'active' : ''}`}
+                  onClick={() => handleDotClick(idx)}
+                  title={`Go to story ${idx + 1}`}
+                  aria-label={`Story ${idx + 1}`}
+                />
+              ))}
+            {total > 8 && (
+              <span className="news-more-counter">+{total - 8}</span>
+            )}
+          </div>
+
+          {/* Action buttons */}
+          <div className="news-control-buttons">
+            {current.link && current.link !== '#' && (
+              <a
+                href={current.link}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="news-read-btn"
+                title="Read full story in new tab"
+              >
+                <span>Read Story</span>
+                <ExternalLink size={12} />
+              </a>
+            )}
+
+            <button
+              className={`icon-btn news-pause-btn ${isManuallyPaused ? 'active-pause' : ''}`}
+              onClick={handleTogglePause}
+              title={isManuallyPaused ? 'Resume auto-cycle' : 'Pause on this story'}
+              aria-label={isManuallyPaused ? 'Resume story rotation' : 'Pause story rotation'}
+            >
+              {isManuallyPaused ? <Play size={14} /> : <Pause size={14} />}
+            </button>
+
             <button
               className="icon-btn"
-              style={{ width: 26, height: 26 }}
               onClick={handlePrev}
               title="Previous Story"
               aria-label="Previous story"
             >
-              <ChevronLeft size={14} />
+              <ChevronLeft size={15} />
             </button>
+
             <button
               className="icon-btn"
-              style={{ width: 26, height: 26 }}
               onClick={handleNext}
               title="Next Story"
               aria-label="Next story"
             >
-              <ChevronRight size={14} />
+              <ChevronRight size={15} />
             </button>
           </div>
         </div>
