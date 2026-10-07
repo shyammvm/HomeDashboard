@@ -1,22 +1,46 @@
-// RSS News Service for Ambient Dashboard
+// RSS News Service for Ambient Dashboard (Works on GitHub Pages & Standalone)
 
 export async function fetchRssFeed(feedUrl) {
+  const targetUrl = feedUrl || 'https://feeds.bbci.co.uk/news/world/rss.xml';
+
+  // 1. Try backend API proxy if available (local dev or Render)
   try {
-    const url = `/api/rss?url=${encodeURIComponent(feedUrl || 'https://feeds.bbci.co.uk/news/world/rss.xml')}`;
+    const url = `/api/rss?url=${encodeURIComponent(targetUrl)}`;
     const res = await fetch(url);
-    if (!res.ok) throw new Error('RSS fetch failed');
-    const data = await res.json();
-    if (data.items && data.items.length > 0) {
-      return data.items.map(item => ({
-        title: item.title,
-        source: data.title || 'World News',
-        snippet: item.contentSnippet || item.title,
-        link: item.link,
-        pubDate: item.pubDate,
-      }));
+    if (res.ok) {
+      const data = await res.json();
+      if (data.items && data.items.length > 0) {
+        return data.items.map(item => ({
+          title: item.title,
+          source: data.title || 'World News',
+          snippet: item.contentSnippet || item.title,
+          link: item.link,
+          pubDate: item.pubDate,
+        }));
+      }
+    }
+  } catch {
+    // API not found (static GitHub Pages) -> fallback to client-side rss2json
+  }
+
+  // 2. Client-side fetch via free rss2json service
+  try {
+    const rss2jsonUrl = `https://api.rss2json.com/v1/api.json?rss_url=${encodeURIComponent(targetUrl)}`;
+    const res = await fetch(rss2jsonUrl, { signal: AbortSignal.timeout(6000) });
+    if (res.ok) {
+      const data = await res.json();
+      if (data.status === 'ok' && data.items && data.items.length > 0) {
+        return data.items.slice(0, 15).map(item => ({
+          title: item.title,
+          source: data.feed ? data.feed.title : 'World News',
+          snippet: item.description ? item.description.replace(/<[^>]*>?/gm, '').trim() : item.title,
+          link: item.link,
+          pubDate: item.pubDate,
+        }));
+      }
     }
   } catch (err) {
-    console.warn('RSS API unavailable, using curated fallback headlines:', err.message);
+    console.warn('rss2json failed, using fallback news:', err.message);
   }
 
   return getFallbackNews();
