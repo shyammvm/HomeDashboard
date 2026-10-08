@@ -10,6 +10,7 @@ import {
   Maximize2,
   ExternalLink,
   MapPin,
+  Briefcase,
 } from 'lucide-react';
 
 import GoogleTrafficMap from './GoogleTrafficMap';
@@ -41,6 +42,7 @@ export default function StarkTacticalDeck({
   onExpandTraffic,
   cycleSeconds = 18,
   userLocation = { lat: 12.9716, lon: 77.7473, cityName: 'Your Location' },
+  commuteData = null,
 }) {
   // Main deck active slide: 0 = AIRSPACE RADAR, 1 = SURFACE TRAFFIC, 2 = SATELLITE INTEL
   const [activeSlide, setActiveSlide] = useState(0);
@@ -913,6 +915,22 @@ export default function StarkTacticalDeck({
                           />
                           <span>{trafficData?.overallCongestion ?? 64}% CONGESTION</span>
                         </div>
+
+                        {commuteData && (
+                          <div
+                            className="hud-commute-chip"
+                            style={{
+                              color: commuteData.color,
+                              borderColor: `${commuteData.color}66`,
+                              cursor: onExpandTraffic ? 'pointer' : 'default',
+                            }}
+                            onClick={onExpandTraffic}
+                            title="Click to view full commute details"
+                          >
+                            <Briefcase size={10} />
+                            <span>COMMUTE: {commuteData.liveEtaMinutes}m (+{commuteData.delayMinutes}m)</span>
+                          </div>
+                        )}
                       </div>
 
                       <div className="hud-center">

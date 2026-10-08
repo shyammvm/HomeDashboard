@@ -13,6 +13,7 @@ import {
   Droplets,
   Wind,
   Thermometer,
+  Activity,
 } from 'lucide-react';
 
 const ICON_MAP = {
@@ -151,6 +152,29 @@ export default function HeroTimeWeather({ weatherData, userName = 'Shyam' }) {
               </span>
               <span className="weather-stat-val">{weatherData.windSpeed} km/h</span>
             </div>
+            {weatherData.aqi && (
+              <div
+                className="weather-stat-item stark-stat-box"
+                style={{
+                  borderColor: `${weatherData.aqi.color}44`,
+                  background: `linear-gradient(135deg, rgba(10,20,30,0.6), ${weatherData.aqi.color}12)`,
+                }}
+                title={weatherData.aqi.description}
+              >
+                <span className="weather-stat-label" style={{ color: weatherData.aqi.color }}>
+                  <Activity size={11} style={{ display: 'inline', marginRight: 3 }} />
+                  AQI ({weatherData.aqi.category})
+                </span>
+                <span className="weather-stat-val" style={{ color: weatherData.aqi.color, display: 'flex', alignItems: 'baseline', justifyContent: 'space-between' }}>
+                  <span>{weatherData.aqi.aqi}</span>
+                  {weatherData.aqi.pm25 != null && (
+                    <span style={{ fontSize: 9.5, opacity: 0.85, fontWeight: 500, fontFamily: 'var(--font-mono)' }}>
+                      PM2.5 {weatherData.aqi.pm25}
+                    </span>
+                  )}
+                </span>
+              </div>
+            )}
           </div>
 
           {/* 4-Day Forecast Strip */}

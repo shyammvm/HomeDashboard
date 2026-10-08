@@ -108,10 +108,70 @@ export async function reverseGeocodeCoordinates(lat, lon) {
   return `${lat.toFixed(3)}, ${lon.toFixed(3)}`;
 }
 
+export async function fetchAirQualityData(lat = 12.9716, lon = 77.7473) {
+  try {
+    const url = `https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${lat}&longitude=${lon}&current=us_aqi,pm2_5,pm10`;
+    const res = await fetch(url, { signal: AbortSignal.timeout(6000) });
+    if (!res.ok) throw new Error('AQI fetch failed');
+    const data = await res.json();
+    const curr = data.current || {};
+    const aqi = Math.round(curr.us_aqi ?? 0);
+    const pm25 = curr.pm2_5 !== undefined && curr.pm2_5 !== null ? Math.round(curr.pm2_5 * 10) / 10 : null;
+    const pm10 = curr.pm10 !== undefined && curr.pm10 !== null ? Math.round(curr.pm10 * 10) / 10 : null;
+
+    let category = 'GOOD';
+    let color = '#10b981'; // emerald
+    let description = 'Good air quality';
+    if (aqi > 300) {
+      category = 'HAZARDOUS';
+      color = '#881337';
+      description = 'Emergency warning';
+    } else if (aqi > 200) {
+      category = 'V. UNHEALTHY';
+      color = '#a855f7';
+      description = 'Health alert';
+    } else if (aqi > 150) {
+      category = 'UNHEALTHY';
+      color = '#ef4444';
+      description = 'Unhealthy air';
+    } else if (aqi > 100) {
+      category = 'SENSITIVE';
+      color = '#f97316';
+      description = 'Unhealthy for sensitive groups';
+    } else if (aqi > 50) {
+      category = 'MODERATE';
+      color = '#fbbf24';
+      description = 'Moderate air quality';
+    }
+
+    return {
+      aqi,
+      pm25,
+      pm10,
+      category,
+      color,
+      description,
+    };
+  } catch (err) {
+    console.warn('AQI fetch error:', err.message);
+    return {
+      aqi: 65,
+      pm25: 14.2,
+      pm10: 22.0,
+      category: 'MODERATE',
+      color: '#fbbf24',
+      description: 'Moderate air quality',
+    };
+  }
+}
+
 export async function fetchWeatherData(lat = 12.9716, lon = 77.7473, cityName = 'Your Location') {
   try {
     const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,relative_humidity_2m,apparent_temperature,is_day,precipitation,weather_code,wind_speed_10m&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max&timezone=auto`;
-    const res = await fetch(url);
+    const [res, aqi] = await Promise.all([
+      fetch(url),
+      fetchAirQualityData(lat, lon),
+    ]);
     if (!res.ok) throw new Error('Weather fetch failed');
     const data = await res.json();
 
@@ -148,6 +208,7 @@ export async function fetchWeatherData(lat = 12.9716, lon = 77.7473, cityName = 
       condition: weatherInfo.label,
       iconName: weatherInfo.icon,
       forecast,
+      aqi,
     };
   } catch (err) {
     console.error('Weather error:', err);
@@ -167,6 +228,14 @@ export async function fetchWeatherData(lat = 12.9716, lon = 77.7473, cityName = 
         { day: 'Sat', max: 29, min: 23, icon: 'CloudRain', condition: 'Scattered Rain' },
         { day: 'Sun', max: 30, min: 24, icon: 'Sun', condition: 'Sunny' },
       ],
+      aqi: {
+        aqi: 65,
+        pm25: 14.2,
+        pm10: 22.0,
+        category: 'MODERATE',
+        color: '#fbbf24',
+        description: 'Moderate air quality',
+      },
     };
   }
 }

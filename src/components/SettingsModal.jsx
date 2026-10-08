@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { X, Save, RotateCw, Globe, Receipt, User, Rss, Clock, Navigation } from 'lucide-react';
+import { X, Save, RotateCw, Globe, Receipt, User, Rss, Clock, Navigation, Home, Briefcase, Moon, Shield } from 'lucide-react';
+import { POPULAR_OFFICE_PRESETS } from '../services/commuteService';
 
 export default function SettingsModal({
   isOpen,
@@ -8,6 +9,13 @@ export default function SettingsModal({
   onSaveConfig,
 }) {
   const [city, setCity] = useState(config.city || 'Your Location');
+  const [homeAddress, setHomeAddress] = useState(config.homeAddress || config.city || 'Whitefield, Bangalore');
+  const [officeAddress, setOfficeAddress] = useState(config.officeAddress || 'RMZ Ecoworld, Bellandur, Bangalore');
+  const [officeName, setOfficeName] = useState(config.officeName || 'Work / EcoWorld');
+  const [selectedOfficePreset, setSelectedOfficePreset] = useState(() => {
+    const found = POPULAR_OFFICE_PRESETS.find(p => p.address === config.officeAddress || p.label === config.officeAddress);
+    return found ? found.address : 'custom';
+  });
   const [userName, setUserName] = useState(config.userName || 'Shyam');
   const [currency, setCurrency] = useState(config.currency || '₹');
   const [expenseTrackerApiUrl, setExpenseTrackerApiUrl] = useState(
@@ -16,19 +24,28 @@ export default function SettingsModal({
   const [rssUrl, setRssUrl] = useState(config.rssUrl || 'https://feeds.bbci.co.uk/news/world/rss.xml');
   const [newsCycleSeconds, setNewsCycleSeconds] = useState(config.newsCycleSeconds || 35);
   const [rotation, setRotation] = useState(config.rotation || 0);
+  const [lcdSleepMode, setLcdSleepMode] = useState(config.lcdSleepMode || false);
+  const [lcdSleepStart, setLcdSleepStart] = useState(config.lcdSleepStart || '23:30');
+  const [lcdSleepEnd, setLcdSleepEnd] = useState(config.lcdSleepEnd || '06:30');
 
   if (!isOpen) return null;
 
   const handleSubmit = (e) => {
     e.preventDefault();
     onSaveConfig({
-      city,
+      city: homeAddress || city,
+      homeAddress: homeAddress || city,
+      officeAddress,
+      officeName,
       userName,
       currency,
       expenseTrackerApiUrl,
       rssUrl,
       newsCycleSeconds: Number(newsCycleSeconds) || 35,
       rotation: Number(rotation),
+      lcdSleepMode: Boolean(lcdSleepMode),
+      lcdSleepStart,
+      lcdSleepEnd,
     });
     onClose();
   };
@@ -77,58 +94,168 @@ export default function SettingsModal({
             />
           </div>
 
-          {/* Weather, Traffic & Flight Radar Location */}
-          <div className="setting-field">
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
-              <label className="setting-label" htmlFor="cfg-city" style={{ margin: 0 }}>
-                <Globe size={13} style={{ display: 'inline', marginRight: 4 }} />
-                Location (Weather, Traffic & Flight Radar)
-              </label>
-              <button
-                type="button"
-                className="mini-expand-text-btn"
-                onClick={async () => {
-                  if ('geolocation' in navigator) {
-                    navigator.geolocation.getCurrentPosition(
-                      async (pos) => {
-                        const { latitude: lat, longitude: lon } = pos.coords;
-                        try {
-                          const res = await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lon}&format=json`, {
-                            headers: { 'User-Agent': 'AetherDashboard/1.0' },
-                          });
-                          const data = await res.json();
-                          const suburb = data.address?.suburb || data.address?.neighbourhood || data.address?.city || data.address?.town;
-                          const state = data.address?.state;
-                          if (suburb) {
-                            setCity(state ? `${suburb}, ${state}` : suburb);
-                          } else {
+          {/* Commute & Telemetry Locations (Home & Office) */}
+          <div style={{ padding: '12px 14px', background: 'rgba(0, 240, 255, 0.03)', border: '1px solid rgba(0, 240, 255, 0.15)', borderRadius: 6 }}>
+            <div style={{ fontSize: 11, fontFamily: 'var(--font-mono)', color: 'var(--stark-cyan)', letterSpacing: '0.8px', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 6 }}>
+              <Home size={13} />
+              <span>GLOBAL LOCATIONS & COMMUTE TELEMETRY</span>
+            </div>
+
+            {/* Home Location */}
+            <div className="setting-field" style={{ marginBottom: 14 }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
+                <label className="setting-label" htmlFor="cfg-home" style={{ margin: 0 }}>
+                  <Home size={12} style={{ display: 'inline', marginRight: 4 }} />
+                  Home / Base Location (Origin)
+                </label>
+                <button
+                  type="button"
+                  className="mini-expand-text-btn"
+                  onClick={async () => {
+                    if ('geolocation' in navigator) {
+                      navigator.geolocation.getCurrentPosition(
+                        async (pos) => {
+                          const { latitude: lat, longitude: lon } = pos.coords;
+                          try {
+                            const res = await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lon}&format=json`, {
+                              headers: { 'User-Agent': 'AetherDashboard/1.0' },
+                            });
+                            const data = await res.json();
+                            const suburb = data.address?.suburb || data.address?.neighbourhood || data.address?.city || data.address?.town;
+                            const state = data.address?.state;
+                            const locName = suburb ? (state ? `${suburb}, ${state}` : suburb) : `${lat.toFixed(4)}, ${lon.toFixed(4)}`;
+                            setHomeAddress(locName);
+                            setCity(locName);
+                          } catch {
+                            setHomeAddress(`${lat.toFixed(4)}, ${lon.toFixed(4)}`);
                             setCity(`${lat.toFixed(4)}, ${lon.toFixed(4)}`);
                           }
-                        } catch {
-                          setCity(`${lat.toFixed(4)}, ${lon.toFixed(4)}`);
-                        }
-                      },
-                      (err) => alert('Unable to retrieve GPS coordinates: ' + err.message)
-                    );
+                        },
+                        (err) => alert('Unable to retrieve GPS coordinates: ' + err.message)
+                      );
+                    }
+                  }}
+                  title="Detect live GPS coordinates from your browser"
+                >
+                  <Navigation size={10} />
+                  <span>USE GPS LOCATION</span>
+                </button>
+              </div>
+              <input
+                id="cfg-home"
+                type="text"
+                className="setting-input"
+                value={homeAddress}
+                onChange={(e) => {
+                  setHomeAddress(e.target.value);
+                  setCity(e.target.value);
+                }}
+                placeholder="e.g. Whitefield, Bangalore or 12.9716, 77.5946"
+              />
+              <div style={{ fontSize: '10px', fontFamily: 'var(--font-mono)', color: 'var(--text-dim)', marginTop: 4 }}>
+                Syncs weather telemetry, live surface traffic map, and flight radar to this location.
+              </div>
+            </div>
+
+            {/* Office Location */}
+            <div className="setting-field" style={{ marginBottom: 12 }}>
+              <label className="setting-label" htmlFor="cfg-office-preset">
+                <Briefcase size={12} style={{ display: 'inline', marginRight: 4 }} />
+                Work / Office Destination (for Live Commute ETAs)
+              </label>
+              <select
+                id="cfg-office-preset"
+                className="setting-input"
+                value={selectedOfficePreset}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setSelectedOfficePreset(val);
+                  if (val !== 'custom') {
+                    const found = POPULAR_OFFICE_PRESETS.find(p => p.address === val);
+                    if (found) {
+                      setOfficeAddress(found.address);
+                      setOfficeName(found.label.split('(')[0].trim());
+                    }
                   }
                 }}
-                title="Detect live GPS coordinates from your browser"
+                style={{ marginBottom: 8 }}
               >
-                <Navigation size={10} />
-                <span>USE GPS LOCATION</span>
-              </button>
+                {POPULAR_OFFICE_PRESETS.map((p, idx) => (
+                  <option key={idx} value={p.address}>{p.label}</option>
+                ))}
+                <option value="custom">Custom Office Address / Coordinates...</option>
+              </select>
+
+              {selectedOfficePreset === 'custom' && (
+                <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 8, marginTop: 6 }}>
+                  <input
+                    type="text"
+                    className="setting-input"
+                    value={officeAddress}
+                    onChange={(e) => setOfficeAddress(e.target.value)}
+                    placeholder="e.g. Manyata Tech Park, Hebbal or Lat, Lon"
+                  />
+                  <input
+                    type="text"
+                    className="setting-input"
+                    value={officeName}
+                    onChange={(e) => setOfficeName(e.target.value)}
+                    placeholder="Label (e.g. Work)"
+                  />
+                </div>
+              )}
+              <div style={{ fontSize: '10px', fontFamily: 'var(--font-mono)', color: 'var(--text-dim)', marginTop: 4 }}>
+                Calculates real-world road routing & live traffic congestion delays for your daily drive.
+              </div>
             </div>
-            <input
-              id="cfg-city"
-              type="text"
-              className="setting-input"
-              value={city}
-              onChange={(e) => setCity(e.target.value)}
-              placeholder="e.g. San Francisco, Tokyo, London, New York"
-            />
-            <div style={{ fontSize: '10px', fontFamily: 'var(--font-mono)', color: 'var(--text-dim)', marginTop: 4 }}>
-              Syncs weather telemetry, live surface traffic map, and flight radar to this location.
+          </div>
+
+          {/* LCD TV Protection & Sleep Dimmer */}
+          <div style={{ padding: '12px 14px', background: 'rgba(255, 180, 0, 0.03)', border: '1px solid rgba(255, 180, 0, 0.2)', borderRadius: 6 }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, fontFamily: 'var(--font-mono)', color: '#fbbf24', letterSpacing: '0.8px' }}>
+                <Moon size={13} />
+                <span>LCD TV CARE // NIGHT SLEEP DIMMER</span>
+              </div>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', fontSize: 11, color: '#ffffff' }}>
+                <input
+                  type="checkbox"
+                  checked={lcdSleepMode}
+                  onChange={(e) => setLcdSleepMode(e.target.checked)}
+                  style={{ cursor: 'pointer', accentColor: '#fbbf24' }}
+                />
+                <span>Enable Sleep Schedule</span>
+              </label>
             </div>
+
+            <div style={{ fontSize: '10.5px', color: 'var(--text-dim)', lineHeight: 1.45, marginBottom: 8 }}>
+              LCD panels don't suffer from OLED burn-in, but static 24/7 running wears down the LED backlight. Sleep mode dims the screen into a subtle dark clock to prolong TV lifespan and eliminate bedroom glare.
+            </div>
+
+            {lcdSleepMode && (
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginTop: 8 }}>
+                <div className="setting-field">
+                  <label className="setting-label" htmlFor="cfg-sleep-start">Sleep Start Time</label>
+                  <input
+                    id="cfg-sleep-start"
+                    type="time"
+                    className="setting-input"
+                    value={lcdSleepStart}
+                    onChange={(e) => setLcdSleepStart(e.target.value)}
+                  />
+                </div>
+                <div className="setting-field">
+                  <label className="setting-label" htmlFor="cfg-sleep-end">Wake Up Time</label>
+                  <input
+                    id="cfg-sleep-end"
+                    type="time"
+                    className="setting-input"
+                    value={lcdSleepEnd}
+                    onChange={(e) => setLcdSleepEnd(e.target.value)}
+                  />
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Currency & Expense Tracker Integration */}

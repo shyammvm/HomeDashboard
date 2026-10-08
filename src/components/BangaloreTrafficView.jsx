@@ -11,6 +11,7 @@ import {
   Briefcase,
   Zap,
   CheckCircle2,
+  ArrowRightLeft,
 } from 'lucide-react';
 
 import GoogleTrafficMap from './GoogleTrafficMap';
@@ -23,6 +24,9 @@ export default function BangaloreTrafficView({
   onBack,
   userLocation = { lat: 12.9716, lon: 77.7473, cityName: 'Your Location' },
   initialRangeKm = 15,
+  commuteData,
+  onToggleCommuteDirection,
+  commuteDirection = 'TO_OFFICE',
 }) {
   const [selectedCenter, setSelectedCenter] = useState('USER');
   const [rangeKm, setRangeKm] = useState(initialRangeKm);
@@ -317,6 +321,51 @@ export default function BangaloreTrafficView({
                 <div className="pane-headline">
                   <span>PROJECTED DRIVE TIMES FROM {activeCenter.shortName}</span>
                 </div>
+
+                {/* Personal Daily Commute Telemetry Card */}
+                {commuteData && (
+                  <div className="personal-commute-hud-card">
+                    <div className="commute-hud-top">
+                      <div className="commute-hud-badge">
+                        <Briefcase size={12} color="var(--stark-cyan)" />
+                        <span>MY DAILY COMMUTE // {commuteData.destinationLabel || 'OFFICE'}</span>
+                      </div>
+                      {onToggleCommuteDirection && (
+                        <button
+                          type="button"
+                          onClick={onToggleCommuteDirection}
+                          className="commute-direction-toggle-btn"
+                          title="Reverse commute direction"
+                        >
+                          <ArrowRightLeft size={10} />
+                          <span>{commuteDirection === 'TO_HOME' ? 'OFFICE ➔ HOME' : 'HOME ➔ OFFICE'}</span>
+                        </button>
+                      )}
+                    </div>
+
+                    <div className="commute-hud-body">
+                      <div className="commute-big-eta" style={{ color: commuteData.color }}>
+                        {commuteData.liveEtaMinutes}
+                        <span className="commute-unit">MINS</span>
+                      </div>
+                      <div className="commute-delay-telemetry">
+                        <div className="commute-status-pill" style={{ color: commuteData.color, borderColor: `${commuteData.color}44` }}>
+                          <span className="live-pulse-dot" style={{ backgroundColor: commuteData.color }} />
+                          <span>{commuteData.status} (+{commuteData.delayMinutes}m DELAY)</span>
+                        </div>
+                        <div className="commute-detail-text">
+                          {commuteData.distanceKm} km route • Freeflow speed: {commuteData.nominalMinutes}m
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="commute-endpoints-row">
+                      <span className="commute-endpoint"><MapPin size={10} /> {commuteData.from}</span>
+                      <span className="commute-arrow">➔</span>
+                      <span className="commute-endpoint"><Building size={10} /> {commuteData.to}</span>
+                    </div>
+                  </div>
+                )}
 
                 <div className="eta-cards-grid">
                   {destinations.map((d) => (

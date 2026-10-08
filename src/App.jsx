@@ -19,16 +19,23 @@ import {
 import { fetchCalendarEvents } from './services/calendarService';
 import { fetchGoogleTasks } from './services/tasksService';
 import { fetchRssFeed } from './services/rssService';
+import { calculateLiveCommute } from './services/commuteService';
 
 const DEFAULT_CONFIG = {
   userName: DASHBOARD_CONFIG.userName || 'Shyam',
   city: DASHBOARD_CONFIG.city || 'Your Location',
+  homeAddress: DASHBOARD_CONFIG.homeAddress || 'Whitefield, Bangalore',
+  officeAddress: DASHBOARD_CONFIG.officeAddress || 'RMZ Ecoworld, Bellandur, Bangalore',
+  officeName: DASHBOARD_CONFIG.officeName || 'Work / EcoWorld',
   currency: DASHBOARD_CONFIG.currency || '₹',
   expenseTrackerApiUrl: DASHBOARD_CONFIG.expenseTrackerApiUrl || 'https://smartexpensetracker-vtkb.onrender.com',
   expenseTrackerSecret: DASHBOARD_CONFIG.expenseTrackerSecret || '2546698',
   rssUrl: DASHBOARD_CONFIG.rssUrl || 'https://feeds.bbci.co.uk/news/world/rss.xml',
   newsCycleSeconds: DASHBOARD_CONFIG.newsCycleSeconds || 35,
   rotation: DASHBOARD_CONFIG.rotation || 0,
+  lcdSleepMode: DASHBOARD_CONFIG.lcdSleepMode || false,
+  lcdSleepStart: DASHBOARD_CONFIG.lcdSleepStart || '23:30',
+  lcdSleepEnd: DASHBOARD_CONFIG.lcdSleepEnd || '06:30',
 };
 
 export default function App() {
@@ -79,6 +86,12 @@ export default function App() {
   const [expenseRefreshTrigger, setExpenseRefreshTrigger] = useState(0);
   const [activeView, setActiveView] = useState('all'); // 'all', 'radar', or 'traffic'
 
+  // Live Commute & LCD Sleep State
+  const [commuteData, setCommuteData] = useState(null);
+  const [commuteDirection, setCommuteDirection] = useState('TO_OFFICE');
+  const [isSleepAwake, setIsSleepAwake] = useState(false);
+  const [currentTimeStr, setCurrentTimeStr] = useState('');
+
   // Sync URLs from config
   const syncUrl = DASHBOARD_CONFIG.googleSyncUrl;
   const effectiveCalendarUrl = syncUrl || DASHBOARD_CONFIG.defaultCalendarUrl || '';
@@ -97,6 +110,28 @@ export default function App() {
       }
     }
   }, [userLocation, config.city]);
+
+  // Load live commute between Home and Office
+  const loadCommute = useCallback(async (dirOverride) => {
+    try {
+      const activeDir = dirOverride || commuteDirection;
+      const data = await calculateLiveCommute({
+        origin: config.homeAddress || userLocation,
+        destination: config.officeAddress || 'RMZ Ecoworld, Bellandur, Bangalore',
+        destinationName: config.officeName || 'Work / Office',
+        direction: activeDir,
+      });
+      if (data) setCommuteData(data);
+    } catch (err) {
+      console.warn('Commute loading failed:', err);
+    }
+  }, [config.homeAddress, config.officeAddress, config.officeName, userLocation, commuteDirection]);
+
+  const handleToggleCommuteDirection = useCallback(() => {
+    const nextDir = commuteDirection === 'TO_OFFICE' ? 'TO_HOME' : 'TO_OFFICE';
+    setCommuteDirection(nextDir);
+    loadCommute(nextDir);
+  }, [commuteDirection, loadCommute]);
 
   // Synchronize location via GPS or configured city
   const syncLocation = useCallback(async (overrideCity) => {
@@ -166,13 +201,42 @@ export default function App() {
     setNewsArticles(articles);
   }, [config.rssUrl]);
 
+  // Clock ticker for LCD TV Sleep Mode
+  useEffect(() => {
+    const updateTime = () => setCurrentTimeStr(new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
+    updateTime();
+    const interval = setInterval(updateTime, 30000);
+    return () => clearInterval(interval);
+  }, []);
+
+  // Night Sleep Dimmer check for LCD TV Backlight Longevity
+  const isNightSleepActive = React.useMemo(() => {
+    if (!config.lcdSleepMode || isSleepAwake) return false;
+    try {
+      const now = new Date();
+      const curMins = now.getHours() * 60 + now.getMinutes();
+      const [sH, sM] = (config.lcdSleepStart || '23:30').split(':').map(Number);
+      const [eH, eM] = (config.lcdSleepEnd || '06:30').split(':').map(Number);
+      const startMins = sH * 60 + sM;
+      const endMins = eH * 60 + eM;
+      if (startMins <= endMins) {
+        return curMins >= startMins && curMins < endMins;
+      } else {
+        return curMins >= startMins || curMins < endMins;
+      }
+    } catch {
+      return false;
+    }
+  }, [config.lcdSleepMode, config.lcdSleepStart, config.lcdSleepEnd, isSleepAwake, currentTimeStr]);
+
   // Initial load
   useEffect(() => {
     syncLocation();
     loadCalendar();
     loadTasks();
     loadNews(config.rssUrl);
-  }, [syncLocation, loadCalendar, loadTasks, loadNews, config.rssUrl]);
+    loadCommute();
+  }, [syncLocation, loadCalendar, loadTasks, loadNews, loadCommute, config.rssUrl]);
 
   // Periodic Auto-refresh intervals for 24x7 unattended operation
   useEffect(() => {
@@ -181,6 +245,7 @@ export default function App() {
     const tasksTimer = setInterval(() => loadTasks(), 5 * 60 * 1000); // 5 mins
     const newsTimer = setInterval(() => loadNews(config.rssUrl), 30 * 60 * 1000); // 30 mins
     const expenseTimer = setInterval(() => setExpenseRefreshTrigger(prev => prev + 1), 3 * 60 * 1000); // 3 mins
+    const commuteTimer = setInterval(() => loadCommute(), 3 * 60 * 1000); // 3 mins
 
     return () => {
       clearInterval(weatherTimer);
@@ -188,8 +253,9 @@ export default function App() {
       clearInterval(tasksTimer);
       clearInterval(newsTimer);
       clearInterval(expenseTimer);
+      clearInterval(commuteTimer);
     };
-  }, [userLocation, config.rssUrl, loadWeather, loadCalendar, loadTasks, loadNews]);
+  }, [userLocation, config.rssUrl, loadWeather, loadCalendar, loadTasks, loadNews, loadCommute]);
 
   // Save config
   const handleSaveConfig = (newConfig) => {
@@ -245,6 +311,9 @@ export default function App() {
             <BangaloreTrafficView
               onBack={() => setActiveView('all')}
               userLocation={userLocation}
+              commuteData={commuteData}
+              commuteDirection={commuteDirection}
+              onToggleCommuteDirection={handleToggleCommuteDirection}
             />
           </div>
         )}
@@ -259,6 +328,7 @@ export default function App() {
               onExpandTraffic={() => setActiveView('traffic')}
               cycleSeconds={config.newsCycleSeconds || 16}
               userLocation={userLocation}
+              commuteData={commuteData}
             />
 
             {/* 2-Column Split: Schedule & Tasks on Left | Expenses on Right */}
@@ -285,6 +355,23 @@ export default function App() {
           </>
         )}
       </main>
+
+      {/* LCD TV Standby & Night Sleep Dimmer */}
+      {isNightSleepActive && (
+        <div
+          className="lcd-sleep-overlay"
+          onClick={() => setIsSleepAwake(true)}
+          role="button"
+          tabIndex={0}
+          title="Click or touch screen to wake"
+        >
+          <div className="lcd-sleep-content">
+            <div className="lcd-sleep-clock">{currentTimeStr}</div>
+            <div className="lcd-sleep-sub">LCD TV STANDBY // NIGHT BACKLIGHT DIMMER ACTIVE</div>
+            <div className="lcd-sleep-hint">CLICK OR TOUCH SCREEN TO WAKE</div>
+          </div>
+        </div>
+      )}
 
       {/* Settings Modal */}
       <SettingsModal

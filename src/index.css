@@ -904,10 +904,16 @@ body {
 
 .weather-stats-grid.stark-stats-grid {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(4, 1fr);
   gap: 8px;
   padding-top: 12px;
   border-top: 1px solid rgba(0, 240, 255, 0.15);
+}
+
+@media (max-width: 680px) {
+  .weather-stats-grid.stark-stats-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
 }
 
 .stark-stat-box {
@@ -5304,4 +5310,206 @@ body {
 
 .corr-delay {
   color: var(--stark-gold);
+}
+
+/* ==========================================================================
+   PERSONAL LIVE COMMUTE CARD (STARK TACTICAL TELEMETRY)
+   ========================================================================== */
+.personal-commute-hud-card {
+  background: linear-gradient(135deg, rgba(0, 240, 255, 0.06), rgba(8, 20, 36, 0.85));
+  border: 1px solid rgba(0, 240, 255, 0.35);
+  border-radius: var(--radius-sm, 6px);
+  padding: 12px 14px;
+  margin-bottom: 14px;
+  box-shadow: 0 4px 20px rgba(0, 240, 255, 0.08), inset 0 0 15px rgba(0, 240, 255, 0.03);
+  position: relative;
+  overflow: hidden;
+}
+
+.personal-commute-hud-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 3px;
+  height: 100%;
+  background: var(--stark-cyan);
+}
+
+.commute-hud-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.commute-hud-badge {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--stark-cyan);
+  letter-spacing: 0.8px;
+}
+
+.commute-direction-toggle-btn {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  background: rgba(0, 240, 255, 0.08);
+  border: 1px solid rgba(0, 240, 255, 0.25);
+  color: #ffffff;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  padding: 3px 8px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.commute-direction-toggle-btn:hover {
+  background: rgba(0, 240, 255, 0.18);
+  border-color: var(--stark-cyan);
+}
+
+.commute-hud-body {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 10px;
+}
+
+.commute-big-eta {
+  font-family: var(--font-mono);
+  font-size: 38px;
+  font-weight: 800;
+  line-height: 1;
+  display: flex;
+  align-items: baseline;
+  gap: 3px;
+}
+
+.commute-big-eta .commute-unit {
+  font-size: 12px;
+  font-weight: 700;
+  opacity: 0.8;
+  letter-spacing: 0.5px;
+}
+
+.commute-delay-telemetry {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.commute-status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border: 1px solid;
+  border-radius: 3px;
+  background: rgba(0, 0, 0, 0.3);
+}
+
+.commute-detail-text {
+  font-size: 11px;
+  color: var(--text-dim);
+  font-family: var(--font-mono);
+}
+
+.commute-endpoints-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  color: var(--text-dim);
+  padding-top: 8px;
+  border-top: 1px dashed rgba(0, 240, 255, 0.15);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.commute-endpoint {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: #e2e8f0;
+  font-weight: 600;
+}
+
+.commute-arrow {
+  color: var(--stark-cyan);
+  font-weight: 700;
+}
+
+/* Slide 1 HUD Commute Chip */
+.hud-commute-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  background: rgba(0, 0, 0, 0.5);
+  border: 1px solid rgba(0, 240, 255, 0.3);
+  border-radius: 4px;
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+}
+
+/* ==========================================================================
+   LCD TV NIGHT SLEEP DIMMER OVERLAY
+   ========================================================================== */
+.lcd-sleep-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 99999;
+  background: rgba(2, 6, 12, 0.94);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  backdrop-filter: blur(10px);
+  animation: fadeIn 0.5s ease;
+}
+
+.lcd-sleep-content {
+  text-align: center;
+  font-family: var(--font-mono);
+  padding: 30px;
+}
+
+.lcd-sleep-clock {
+  font-size: 72px;
+  font-weight: 700;
+  color: rgba(255, 180, 0, 0.5);
+  letter-spacing: 2px;
+  text-shadow: 0 0 20px rgba(255, 180, 0, 0.2);
+}
+
+.lcd-sleep-sub {
+  font-size: 12px;
+  letter-spacing: 2px;
+  color: rgba(255, 255, 255, 0.35);
+  margin-top: 10px;
+}
+
+.lcd-sleep-hint {
+  font-size: 10.5px;
+  letter-spacing: 1.5px;
+  color: rgba(0, 240, 255, 0.6);
+  margin-top: 24px;
+  border: 1px solid rgba(0, 240, 255, 0.25);
+  padding: 6px 16px;
+  display: inline-block;
+  border-radius: 4px;
+  background: rgba(0, 240, 255, 0.05);
 }
