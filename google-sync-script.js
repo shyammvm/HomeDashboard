@@ -24,14 +24,47 @@
 
 function doGet(e) {
   try {
+    const props = PropertiesService.getScriptProperties();
+
+    // 1. Remote Settings Save Action (can be called via GET query to avoid CORS issues)
+    if (e && e.parameter && e.parameter.action === 'save_settings') {
+      const dataStr = e.parameter.data;
+      if (dataStr) {
+        props.setProperty('AETHER_SETTINGS', dataStr);
+        const now = String(new Date().getTime());
+        props.setProperty('AETHER_SETTINGS_TIME', now);
+        return ContentService.createTextOutput(JSON.stringify({
+          status: 'ok',
+          message: 'Settings saved successfully',
+          updatedAt: Number(now)
+        })).setMimeType(ContentService.MimeType.JSON);
+      }
+    }
+
+    // 2. Remote Settings Read Action
+    if (e && e.parameter && e.parameter.action === 'get_settings') {
+      const raw = props.getProperty('AETHER_SETTINGS');
+      const time = props.getProperty('AETHER_SETTINGS_TIME');
+      return ContentService.createTextOutput(JSON.stringify({
+        status: 'ok',
+        settings: raw ? JSON.parse(raw) : null,
+        updatedAt: time ? Number(time) : 0
+      })).setMimeType(ContentService.MimeType.JSON);
+    }
+
+    // 3. Regular 24x7 Sync (streams Calendar, Google Tasks, AND synchronized settings)
     const calendarEvents = getCalendarEvents();
     const googleTasks = getGoogleTasks();
+    const rawSettings = props.getProperty('AETHER_SETTINGS');
+    const settingsTime = props.getProperty('AETHER_SETTINGS_TIME');
 
     const output = {
       status: 'ok',
       syncedAt: new Date().toISOString(),
       events: calendarEvents,
       tasks: googleTasks,
+      settings: rawSettings ? JSON.parse(rawSettings) : null,
+      settingsUpdatedAt: settingsTime ? Number(settingsTime) : 0,
     };
 
     return ContentService.createTextOutput(JSON.stringify(output))
@@ -43,6 +76,28 @@ function doGet(e) {
       timestamp: new Date().toISOString(),
     };
     return ContentService.createTextOutput(JSON.stringify(errorOutput))
+      .setMimeType(ContentService.MimeType.JSON);
+  }
+}
+
+function doPost(e) {
+  try {
+    const props = PropertiesService.getScriptProperties();
+    const bodyStr = (e && e.postData && e.postData.contents) ? e.postData.contents : '';
+    if (bodyStr) {
+      props.setProperty('AETHER_SETTINGS', bodyStr);
+      const now = String(new Date().getTime());
+      props.setProperty('AETHER_SETTINGS_TIME', now);
+      return ContentService.createTextOutput(JSON.stringify({
+        status: 'ok',
+        message: 'Settings saved via POST',
+        updatedAt: Number(now)
+      })).setMimeType(ContentService.MimeType.JSON);
+    }
+    return ContentService.createTextOutput(JSON.stringify({ status: 'error', message: 'Empty body' }))
+      .setMimeType(ContentService.MimeType.JSON);
+  } catch (err) {
+    return ContentService.createTextOutput(JSON.stringify({ status: 'error', message: err.toString() }))
       .setMimeType(ContentService.MimeType.JSON);
   }
 }

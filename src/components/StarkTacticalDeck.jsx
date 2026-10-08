@@ -7,7 +7,6 @@ import {
   Pause,
   ChevronLeft,
   ChevronRight,
-  Maximize2,
   ExternalLink,
   MapPin,
   Briefcase,
@@ -15,7 +14,6 @@ import {
 
 import GoogleTrafficMap from './GoogleTrafficMap';
 import {
-  RADAR_CENTERS,
   fetchBangaloreFlights,
   fetchBangaloreCloudInfo,
   calculateDistanceKm,
@@ -32,14 +30,11 @@ import {
 } from '../services/radarMapData';
 
 import {
-  TRAFFIC_CENTERS,
   fetchLiveTrafficData,
 } from '../services/trafficService';
 
 export default function StarkTacticalDeck({
   newsArticles = [],
-  onExpandRadar,
-  onExpandTraffic,
   cycleSeconds = 18,
   userLocation = { lat: 12.9716, lon: 77.7473, cityName: 'Your Location' },
   commuteData = null,
@@ -698,28 +693,6 @@ export default function StarkTacticalDeck({
 
         {/* Deck Navigation Actions */}
         <div className="deck-actions-group">
-          {activeSlide === 0 && onExpandRadar && (
-            <button
-              className="deck-icon-btn"
-              onClick={onExpandRadar}
-              title="Expand full radar view"
-              aria-label="Expand radar"
-            >
-              <Maximize2 size={12} />
-            </button>
-          )}
-
-          {activeSlide === 1 && onExpandTraffic && (
-            <button
-              className="deck-icon-btn"
-              onClick={onExpandTraffic}
-              title="Expand full surface traffic map view"
-              aria-label="Expand traffic map"
-            >
-              <Maximize2 size={12} />
-            </button>
-          )}
-
           <button
             className="deck-icon-btn"
             onClick={() => setIsPaused(!isPaused)}
@@ -823,18 +796,6 @@ export default function StarkTacticalDeck({
                   <div className="fw-radar-right-col">
                     <div className="tape-header-row">
                       <span className="tape-header">NEAREST CONTACTS (50KM)</span>
-                      {onExpandRadar && (
-                        <button
-                          className="mini-expand-text-btn"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            onExpandRadar();
-                          }}
-                        >
-                          <Maximize2 size={10} />
-                          <span>EXPAND</span>
-                        </button>
-                      )}
                     </div>
                     <div className="fw-contacts-list">
                       {visibleFlights.slice(0, 5).map((f) => (
@@ -922,10 +883,8 @@ export default function StarkTacticalDeck({
                             style={{
                               color: commuteData.color,
                               borderColor: `${commuteData.color}66`,
-                              cursor: onExpandTraffic ? 'pointer' : 'default',
                             }}
-                            onClick={onExpandTraffic}
-                            title="Click to view full commute details"
+                            title="Live Commute ETA"
                           >
                             <Briefcase size={10} />
                             <span>COMMUTE: {commuteData.liveEtaMinutes}m (+{commuteData.delayMinutes}m)</span>
@@ -951,21 +910,7 @@ export default function StarkTacticalDeck({
                         ))}
                       </div>
 
-                      <div className="hud-right">
-                        {onExpandTraffic && (
-                          <button
-                            className="mini-expand-text-btn"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              onExpandTraffic();
-                            }}
-                            title="Open Full Surface Traffic Command Center"
-                          >
-                            <Maximize2 size={10} />
-                            <span>EXPAND MAP</span>
-                          </button>
-                        )}
-                      </div>
+                      <div className="hud-right" />
                     </div>
                   </div>
                 </div>

@@ -4,18 +4,13 @@ import {
   WifiOff,
   Settings,
   RefreshCw,
-  Radio,
-  Car,
-  LayoutGrid,
-  ShieldAlert,
-  Zap,
+  Smartphone,
 } from 'lucide-react';
 
 export default function StarkHudBar({
   onOpenSettings,
+  onOpenRemote,
   onRefreshAll,
-  activeView = 'all',
-  onSelectView,
   userName = 'Shyam',
 }) {
   const [isOnline, setIsOnline] = useState(navigator.onLine);
@@ -111,36 +106,6 @@ export default function StarkHudBar({
 
       {/* Right: Holographic Tactical Controls */}
       <div className="stark-hud-controls">
-        {/* HUD View Mode Selector */}
-        {onSelectView && (
-          <div className="stark-view-toggle">
-            <button
-              className={`stark-btn ${activeView === 'all' ? 'active' : ''}`}
-              onClick={() => onSelectView('all')}
-              title="Full Tactical Overview (All Modules)"
-            >
-              <LayoutGrid size={12} />
-              <span>ALL HUD</span>
-            </button>
-            <button
-              className={`stark-btn ${activeView === 'radar' ? 'active' : ''}`}
-              onClick={() => onSelectView('radar')}
-              title="Airspace Radar Direct Focus"
-            >
-              <Radio size={12} />
-              <span>RADAR</span>
-            </button>
-            <button
-              className={`stark-btn ${activeView === 'traffic' ? 'active' : ''}`}
-              onClick={() => onSelectView('traffic')}
-              title="Surface Traffic & Tactical Maps"
-            >
-              <Car size={12} />
-              <span>TRAFFIC</span>
-            </button>
-          </div>
-        )}
-
         {/* Re-Calibrate / Refresh Button */}
         <button
           className="stark-icon-btn"
@@ -154,6 +119,19 @@ export default function StarkHudBar({
           />
           <span className="btn-label-mobile-hide">SYNC</span>
         </button>
+
+        {/* Remote Settings Link for Phone & Laptop */}
+        {onOpenRemote && (
+          <button
+            className="stark-icon-btn remote-link-btn"
+            onClick={onOpenRemote}
+            title="Open Remote Settings on Phone or Laptop"
+            aria-label="Open phone remote settings"
+          >
+            <Smartphone size={14} />
+            <span className="btn-label-mobile-hide">REMOTE</span>
+          </button>
+        )}
 
         {/* System Settings Override */}
         <button

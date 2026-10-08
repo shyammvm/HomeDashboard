@@ -1,12 +1,13 @@
 import React, { useState } from 'react';
-import { X, Save, RotateCw, Globe, Receipt, User, Rss, Clock, Navigation, Home, Briefcase, Moon, Shield } from 'lucide-react';
-import { POPULAR_OFFICE_PRESETS } from '../services/commuteService';
+import { X, Save, RotateCw, Globe, Receipt, User, Rss, Clock, Navigation, Home, Briefcase, Moon, Shield, Smartphone, QrCode } from 'lucide-react';
+import { POPULAR_OFFICE_PRESETS, parseCoordinateString } from '../services/commuteService';
 
 export default function SettingsModal({
   isOpen,
   onClose,
   config,
   onSaveConfig,
+  onOpenRemoteModal,
 }) {
   const [city, setCity] = useState(config.city || 'Your Location');
   const [homeAddress, setHomeAddress] = useState(config.homeAddress || config.city || 'Whitefield, Bangalore');
@@ -16,6 +17,58 @@ export default function SettingsModal({
     const found = POPULAR_OFFICE_PRESETS.find(p => p.address === config.officeAddress || p.label === config.officeAddress);
     return found ? found.address : 'custom';
   });
+
+  // Coordinate builder & parsed states
+  const [showHomeCoordBuilder, setShowHomeCoordBuilder] = useState(() => Boolean(parseCoordinateString(config.homeAddress || config.city)));
+  const [showOfficeCoordBuilder, setShowOfficeCoordBuilder] = useState(() => Boolean(parseCoordinateString(config.officeAddress)));
+
+  const parsedHomeCoords = parseCoordinateString(homeAddress);
+  const parsedOfficeCoords = parseCoordinateString(officeAddress);
+
+  const [homeLatInput, setHomeLatInput] = useState(() => (parsedHomeCoords ? String(parsedHomeCoords.lat) : ''));
+  const [homeLonInput, setHomeLonInput] = useState(() => (parsedHomeCoords ? String(parsedHomeCoords.lon) : ''));
+  const [officeLatInput, setOfficeLatInput] = useState(() => (parsedOfficeCoords ? String(parsedOfficeCoords.lat) : ''));
+  const [officeLonInput, setOfficeLonInput] = useState(() => (parsedOfficeCoords ? String(parsedOfficeCoords.lon) : ''));
+
+  const handleHomeAddressChange = (val) => {
+    setHomeAddress(val);
+    setCity(val);
+    const parsed = parseCoordinateString(val);
+    if (parsed) {
+      setHomeLatInput(String(parsed.lat));
+      setHomeLonInput(String(parsed.lon));
+    }
+  };
+
+  const handleHomeLatLonChange = (newLat, newLon) => {
+    setHomeLatInput(newLat);
+    setHomeLonInput(newLon);
+    if (newLat.trim() && newLon.trim()) {
+      const coordStr = `${newLat.trim()}, ${newLon.trim()}`;
+      setHomeAddress(coordStr);
+      setCity(coordStr);
+    }
+  };
+
+  const handleOfficeAddressChange = (val) => {
+    setOfficeAddress(val);
+    const found = POPULAR_OFFICE_PRESETS.find(p => p.address === val || p.label === val);
+    setSelectedOfficePreset(found ? found.address : 'custom');
+    const parsed = parseCoordinateString(val);
+    if (parsed) {
+      setOfficeLatInput(String(parsed.lat));
+      setOfficeLonInput(String(parsed.lon));
+    }
+  };
+
+  const handleOfficeLatLonChange = (newLat, newLon) => {
+    setOfficeLatInput(newLat);
+    setOfficeLonInput(newLon);
+    setSelectedOfficePreset('custom');
+    if (newLat.trim() && newLon.trim()) {
+      setOfficeAddress(`${newLat.trim()}, ${newLon.trim()}`);
+    }
+  };
   const [userName, setUserName] = useState(config.userName || 'Shyam');
   const [currency, setCurrency] = useState(config.currency || '₹');
   const [expenseTrackerApiUrl, setExpenseTrackerApiUrl] = useState(
@@ -62,10 +115,10 @@ export default function SettingsModal({
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <span className="pulse-dot" style={{ backgroundColor: 'var(--stark-cyan)', width: 7, height: 7 }} />
-              <h2 className="modal-title stark-title">STARK IND. // CONFIGURATION</h2>
+              <h2 className="modal-title stark-title">STARK IND. // COMMON CONFIGURATION</h2>
             </div>
             <div style={{ fontSize: 10, fontFamily: 'var(--font-mono)', color: 'var(--text-dim)', marginTop: 2, letterSpacing: '0.6px' }}>
-              J.A.R.V.I.S. M.K. 85 INTERFACE PARAMETERS
+              SYNCED ACROSS TV, PHONE & LAPTOP DISPLAYS
             </div>
           </div>
           <button
@@ -75,6 +128,41 @@ export default function SettingsModal({
           >
             <X size={18} />
           </button>
+        </div>
+
+        {/* Remote Sync Callout Banner */}
+        <div className="settings-remote-banner">
+          <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
+            <div className="settings-banner-icon">
+              <Smartphone size={18} color="var(--stark-cyan)" />
+            </div>
+            <div style={{ flex: 1 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span style={{ fontSize: 12, fontWeight: 700, color: '#ffffff' }}>TV Display Too Slow to Type?</span>
+                <span className="remote-feature-pill" style={{ padding: '2px 6px', fontSize: 9 }}>
+                  <span className="pulse-dot" style={{ backgroundColor: '#10b981', width: 5, height: 5 }} />
+                  CLOUD SYNC ACTIVE
+                </span>
+              </div>
+              <div style={{ fontSize: 10.5, color: 'var(--text-dim)', marginTop: 2, lineHeight: 1.4 }}>
+                Edit all preferences comfortably on your phone or laptop. Saving there instantly updates this TV!
+              </div>
+            </div>
+            {onOpenRemoteModal && (
+              <button
+                type="button"
+                className="btn-primary"
+                onClick={() => {
+                  onClose();
+                  onOpenRemoteModal();
+                }}
+                style={{ padding: '6px 10px', fontSize: 11, whiteSpace: 'nowrap' }}
+              >
+                <QrCode size={12} />
+                <span>QR CODE</span>
+              </button>
+            )}
+          </div>
         </div>
 
         <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
@@ -102,67 +190,122 @@ export default function SettingsModal({
             </div>
 
             {/* Home Location */}
-            <div className="setting-field" style={{ marginBottom: 14 }}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
+            <div className="setting-field" style={{ marginBottom: 16 }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6, flexWrap: 'wrap', gap: 6 }}>
                 <label className="setting-label" htmlFor="cfg-home" style={{ margin: 0 }}>
                   <Home size={12} style={{ display: 'inline', marginRight: 4 }} />
                   Home / Base Location (Origin)
                 </label>
-                <button
-                  type="button"
-                  className="mini-expand-text-btn"
-                  onClick={async () => {
-                    if ('geolocation' in navigator) {
-                      navigator.geolocation.getCurrentPosition(
-                        async (pos) => {
-                          const { latitude: lat, longitude: lon } = pos.coords;
-                          try {
-                            const res = await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lon}&format=json`, {
-                              headers: { 'User-Agent': 'AetherDashboard/1.0' },
-                            });
-                            const data = await res.json();
-                            const suburb = data.address?.suburb || data.address?.neighbourhood || data.address?.city || data.address?.town;
-                            const state = data.address?.state;
-                            const locName = suburb ? (state ? `${suburb}, ${state}` : suburb) : `${lat.toFixed(4)}, ${lon.toFixed(4)}`;
-                            setHomeAddress(locName);
-                            setCity(locName);
-                          } catch {
-                            setHomeAddress(`${lat.toFixed(4)}, ${lon.toFixed(4)}`);
-                            setCity(`${lat.toFixed(4)}, ${lon.toFixed(4)}`);
-                          }
-                        },
-                        (err) => alert('Unable to retrieve GPS coordinates: ' + err.message)
-                      );
-                    }
-                  }}
-                  title="Detect live GPS coordinates from your browser"
-                >
-                  <Navigation size={10} />
-                  <span>USE GPS LOCATION</span>
-                </button>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <button
+                    type="button"
+                    className={`mini-expand-text-btn ${showHomeCoordBuilder ? 'active' : ''}`}
+                    onClick={() => setShowHomeCoordBuilder(!showHomeCoordBuilder)}
+                    title="Toggle Latitude & Longitude Builder"
+                  >
+                    <Globe size={10} />
+                    <span>{showHomeCoordBuilder ? 'HIDE BUILDER' : 'LAT/LON BUILDER'}</span>
+                  </button>
+                  <button
+                    type="button"
+                    className="mini-expand-text-btn"
+                    onClick={() => {
+                      if ('geolocation' in navigator) {
+                        navigator.geolocation.getCurrentPosition(
+                          (pos) => {
+                            const { latitude: lat, longitude: lon } = pos.coords;
+                            const coordStr = `${lat.toFixed(6)}, ${lon.toFixed(6)}`;
+                            handleHomeAddressChange(coordStr);
+                            setShowHomeCoordBuilder(true);
+                          },
+                          (err) => alert('Unable to retrieve GPS coordinates: ' + err.message),
+                          { enableHighAccuracy: true, timeout: 8000 }
+                        );
+                      }
+                    }}
+                    title="Detect live GPS coordinates from your device"
+                  >
+                    <Navigation size={10} />
+                    <span>USE GPS COORDS</span>
+                  </button>
+                </div>
               </div>
+
               <input
                 id="cfg-home"
                 type="text"
                 className="setting-input"
                 value={homeAddress}
-                onChange={(e) => {
-                  setHomeAddress(e.target.value);
-                  setCity(e.target.value);
-                }}
-                placeholder="e.g. Whitefield, Bangalore or 12.9716, 77.5946"
+                onChange={(e) => handleHomeAddressChange(e.target.value)}
+                placeholder="e.g. 12.9716, 77.5946 or Whitefield, Bangalore"
               />
-              <div style={{ fontSize: '10px', fontFamily: 'var(--font-mono)', color: 'var(--text-dim)', marginTop: 4 }}>
-                Syncs weather telemetry, live surface traffic map, and flight radar to this location.
+
+              {parsedHomeCoords && (
+                <div className="coord-valid-tag">
+                  <Globe size={11} />
+                  <span>GPS COORDINATES DETECTED: {parsedHomeCoords.lat.toFixed(5)}°, {parsedHomeCoords.lon.toFixed(5)}° (ACTIVE ORIGIN)</span>
+                </div>
+              )}
+
+              {/* Lat/Lon Builder for Home */}
+              {showHomeCoordBuilder && (
+                <div className="coord-builder-box">
+                  <div style={{ fontSize: 10, fontFamily: 'var(--font-mono)', color: 'var(--stark-cyan)', marginBottom: 6, display: 'flex', alignItems: 'center', gap: 5 }}>
+                    <Globe size={11} />
+                    <span>HOME LATITUDE & LONGITUDE BUILDER</span>
+                  </div>
+                  <div className="coord-input-row">
+                    <div>
+                      <label style={{ fontSize: 9.5, fontFamily: 'var(--font-mono)', color: 'var(--text-dim)', display: 'block', marginBottom: 2 }}>
+                        LATITUDE (NORTH/SOUTH)
+                      </label>
+                      <input
+                        type="text"
+                        className="setting-input"
+                        value={homeLatInput}
+                        onChange={(e) => handleHomeLatLonChange(e.target.value, homeLonInput)}
+                        placeholder="e.g. 12.9716"
+                      />
+                    </div>
+                    <div>
+                      <label style={{ fontSize: 9.5, fontFamily: 'var(--font-mono)', color: 'var(--text-dim)', display: 'block', marginBottom: 2 }}>
+                        LONGITUDE (EAST/WEST)
+                      </label>
+                      <input
+                        type="text"
+                        className="setting-input"
+                        value={homeLonInput}
+                        onChange={(e) => handleHomeLatLonChange(homeLatInput, e.target.value)}
+                        placeholder="e.g. 77.5946"
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              <div className="coord-helper-note">
+                Syncs weather telemetry, live surface traffic map, and flight radar. Accepts exact coordinates (e.g. <code>12.9716, 77.5946</code>) or locality name.
               </div>
             </div>
 
             {/* Office Location */}
             <div className="setting-field" style={{ marginBottom: 12 }}>
-              <label className="setting-label" htmlFor="cfg-office-preset">
-                <Briefcase size={12} style={{ display: 'inline', marginRight: 4 }} />
-                Work / Office Destination (for Live Commute ETAs)
-              </label>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6, flexWrap: 'wrap', gap: 6 }}>
+                <label className="setting-label" htmlFor="cfg-office-preset" style={{ margin: 0 }}>
+                  <Briefcase size={12} style={{ display: 'inline', marginRight: 4 }} />
+                  Work / Office Destination (for Live Commute ETAs)
+                </label>
+                <button
+                  type="button"
+                  className={`mini-expand-text-btn ${showOfficeCoordBuilder ? 'active' : ''}`}
+                  onClick={() => setShowOfficeCoordBuilder(!showOfficeCoordBuilder)}
+                  title="Toggle Work Latitude & Longitude Builder"
+                >
+                  <Globe size={10} />
+                  <span>{showOfficeCoordBuilder ? 'HIDE BUILDER' : 'LAT/LON BUILDER'}</span>
+                </button>
+              </div>
+
               <select
                 id="cfg-office-preset"
                 className="setting-input"
@@ -173,9 +316,11 @@ export default function SettingsModal({
                   if (val !== 'custom') {
                     const found = POPULAR_OFFICE_PRESETS.find(p => p.address === val);
                     if (found) {
-                      setOfficeAddress(found.address);
+                      handleOfficeAddressChange(found.address);
                       setOfficeName(found.label.split('(')[0].trim());
                     }
+                  } else {
+                    setShowOfficeCoordBuilder(true);
                   }
                 }}
                 style={{ marginBottom: 8 }}
@@ -183,29 +328,71 @@ export default function SettingsModal({
                 {POPULAR_OFFICE_PRESETS.map((p, idx) => (
                   <option key={idx} value={p.address}>{p.label}</option>
                 ))}
-                <option value="custom">Custom Office Address / Coordinates...</option>
+                <option value="custom">🌐 Custom GPS Coordinates / Custom Address...</option>
               </select>
 
-              {selectedOfficePreset === 'custom' && (
-                <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 8, marginTop: 6 }}>
-                  <input
-                    type="text"
-                    className="setting-input"
-                    value={officeAddress}
-                    onChange={(e) => setOfficeAddress(e.target.value)}
-                    placeholder="e.g. Manyata Tech Park, Hebbal or Lat, Lon"
-                  />
-                  <input
-                    type="text"
-                    className="setting-input"
-                    value={officeName}
-                    onChange={(e) => setOfficeName(e.target.value)}
-                    placeholder="Label (e.g. Work)"
-                  />
+              {parsedOfficeCoords && (
+                <div className="coord-valid-tag" style={{ marginBottom: 8 }}>
+                  <Globe size={11} />
+                  <span>GPS WORK DESTINATION: {parsedOfficeCoords.lat.toFixed(5)}°, {parsedOfficeCoords.lon.toFixed(5)}° (ACTIVE DESTINATION)</span>
                 </div>
               )}
-              <div style={{ fontSize: '10px', fontFamily: 'var(--font-mono)', color: 'var(--text-dim)', marginTop: 4 }}>
-                Calculates real-world road routing & live traffic congestion delays for your daily drive.
+
+              {/* Lat/Lon Builder for Work */}
+              {showOfficeCoordBuilder && (
+                <div className="coord-builder-box">
+                  <div style={{ fontSize: 10, fontFamily: 'var(--font-mono)', color: 'var(--stark-cyan)', marginBottom: 6, display: 'flex', alignItems: 'center', gap: 5 }}>
+                    <Globe size={11} />
+                    <span>WORK DESTINATION LATITUDE & LONGITUDE BUILDER</span>
+                  </div>
+                  <div className="coord-input-row">
+                    <div>
+                      <label style={{ fontSize: 9.5, fontFamily: 'var(--font-mono)', color: 'var(--text-dim)', display: 'block', marginBottom: 2 }}>
+                        WORK LATITUDE
+                      </label>
+                      <input
+                        type="text"
+                        className="setting-input"
+                        value={officeLatInput}
+                        onChange={(e) => handleOfficeLatLonChange(e.target.value, officeLonInput)}
+                        placeholder="e.g. 12.9249"
+                      />
+                    </div>
+                    <div>
+                      <label style={{ fontSize: 9.5, fontFamily: 'var(--font-mono)', color: 'var(--text-dim)', display: 'block', marginBottom: 2 }}>
+                        WORK LONGITUDE
+                      </label>
+                      <input
+                        type="text"
+                        className="setting-input"
+                        value={officeLonInput}
+                        onChange={(e) => handleOfficeLatLonChange(officeLatInput, e.target.value)}
+                        placeholder="e.g. 77.6744"
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 8, marginTop: 6 }}>
+                <input
+                  type="text"
+                  className="setting-input"
+                  value={officeAddress}
+                  onChange={(e) => handleOfficeAddressChange(e.target.value)}
+                  placeholder="e.g. 12.9249, 77.6744 or Manyata Tech Park, Hebbal"
+                />
+                <input
+                  type="text"
+                  className="setting-input"
+                  value={officeName}
+                  onChange={(e) => setOfficeName(e.target.value)}
+                  placeholder="Label (e.g. Work)"
+                />
+              </div>
+
+              <div className="coord-helper-note">
+                Calculates real-world road routing & live traffic congestion delays. Accepts exact coordinates (e.g. <code>12.9249, 77.6744</code>) or office address.
               </div>
             </div>
           </div>

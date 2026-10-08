@@ -50,6 +50,38 @@ function getBangaloreTimeCongestionFactor() {
 const commuteCache = new Map();
 
 /**
+ * Parse coordinate string into { lat, lon }
+ */
+export function parseCoordinateString(str) {
+  if (!str || typeof str !== 'string') return null;
+  let clean = str.trim().replace(/^[\(\[\{]/, '').replace(/[\)\]\}]$/, '').trim();
+
+  // Standard format: lat, lon (e.g. 12.9716, 77.5946 or -33.8688, 151.2093)
+  const match = clean.match(/^([-+]?[0-9]*\.?[0-9]+)\s*[, \t/]+\s*([-+]?[0-9]*\.?[0-9]+)$/);
+  if (match) {
+    const lat = parseFloat(match[1]);
+    const lon = parseFloat(match[2]);
+    if (!isNaN(lat) && !isNaN(lon) && lat >= -90 && lat <= 90 && lon >= -180 && lon <= 180) {
+      return { lat, lon, formatted: `${lat.toFixed(4)}, ${lon.toFixed(4)}` };
+    }
+  }
+
+  // Also support N/S, E/W notation (e.g. "12.9716 N, 77.5946 E" or "12.9716°N 77.5946°E")
+  const geoMatch = clean.match(/^([0-9]*\.?[0-9]+)\s*°?\s*([NSns])\s*[, \t/]+\s*([0-9]*\.?[0-9]+)\s*°?\s*([EWew])$/);
+  if (geoMatch) {
+    let lat = parseFloat(geoMatch[1]);
+    if (geoMatch[2].toUpperCase() === 'S') lat = -lat;
+    let lon = parseFloat(geoMatch[3]);
+    if (geoMatch[4].toUpperCase() === 'W') lon = -lon;
+    if (!isNaN(lat) && !isNaN(lon) && lat >= -90 && lat <= 90 && lon >= -180 && lon <= 180) {
+      return { lat, lon, formatted: `${lat.toFixed(4)}, ${lon.toFixed(4)}` };
+    }
+  }
+
+  return null;
+}
+
+/**
  * Resolve coordinates for a location string or coordinate object
  */
 export async function resolveLocationCoords(loc) {
@@ -59,7 +91,17 @@ export async function resolveLocationCoords(loc) {
   }
 
   if (typeof loc === 'string') {
-    // Check popular presets first
+    // 1. Direct GPS coordinates check (e.g. "12.9716, 77.5946" or "12.9716 77.5946")
+    const parsedCoords = parseCoordinateString(loc);
+    if (parsedCoords) {
+      return {
+        name: parsedCoords.formatted,
+        lat: parsedCoords.lat,
+        lon: parsedCoords.lon,
+      };
+    }
+
+    // 2. Check popular presets
     const matchedPreset = POPULAR_OFFICE_PRESETS.find(
       (p) => p.label.toLowerCase().includes(loc.toLowerCase()) || p.address.toLowerCase().includes(loc.toLowerCase())
     );
@@ -67,7 +109,7 @@ export async function resolveLocationCoords(loc) {
       return { name: matchedPreset.label, lat: matchedPreset.lat, lon: matchedPreset.lon };
     }
 
-    // Geocode via open geocoder
+    // 3. Geocode via open geocoder
     const geo = await fetchCoordinatesForCity(loc);
     if (geo) {
       return { name: geo.name, lat: geo.lat, lon: geo.lon };

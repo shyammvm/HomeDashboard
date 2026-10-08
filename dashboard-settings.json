@@ -1,0 +1,18 @@
+{
+  "userName": "Shyam",
+  "city": "Whitefield, Bangalore",
+  "homeAddress": "Whitefield, Bangalore",
+  "officeAddress": "RMZ Ecoworld, Bellandur, Bangalore",
+  "officeName": "Work / EcoWorld",
+  "currency": "₹",
+  "expenseTrackerApiUrl": "https://smartexpensetracker-vtkb.onrender.com",
+  "expenseTrackerSecret": "2546698",
+  "rssUrl": "https://feeds.bbci.co.uk/news/world/rss.xml",
+  "newsCycleSeconds": 35,
+  "rotation": 0,
+  "lcdSleepMode": false,
+  "lcdSleepStart": "23:30",
+  "lcdSleepEnd": "06:30",
+  "updatedAt": 1791451909127,
+  "updatedBy": "defaults"
+}

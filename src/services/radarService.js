@@ -428,69 +428,10 @@ export function processFlightState(state, center) {
   };
 }
 
-/**
- * Realistic simulated flights for Bangalore FIR with full variety of commercial, cargo, military, private, and rotary
- */
-export function getRealisticFallbackFlights(center) {
-  const templates = [
-    // 1. Commercial Domestic (Narrowbody)
-    { callsign: 'IGO525', country: 'India', lat: 13.29, lon: 77.47, alt: 2740, spd: 110, trk: 215, vRate: -12, type: 'COMMERCIAL' },
-    { callsign: 'AIC8SY', country: 'India', lat: 13.89, lon: 77.85, alt: 6980, spd: 205, trk: 7, vRate: 6, type: 'COMMERCIAL' },
-    { callsign: 'AKJ1336', country: 'India', lat: 13.34, lon: 77.90, alt: 3430, spd: 160, trk: 330, vRate: 4, type: 'COMMERCIAL' },
-    { callsign: 'AXB1581', country: 'India', lat: 13.61, lon: 77.71, alt: 5280, spd: 185, trk: 328, vRate: 10, type: 'COMMERCIAL' },
-    { callsign: 'IGO435', country: 'India', lat: 14.12, lon: 78.16, alt: 8940, spd: 220, trk: 170, vRate: -10, type: 'COMMERCIAL' },
-    { callsign: 'SEJ304', country: 'India', lat: 13.05, lon: 77.95, alt: 1850, spd: 135, trk: 272, vRate: -6, type: 'COMMERCIAL' },
-
-    // 2. Commercial International (Widebody)
-    { callsign: 'UAE566', country: 'UAE', lat: 13.45, lon: 77.20, alt: 4200, spd: 170, trk: 110, vRate: -8, type: 'COMMERCIAL' },
-    { callsign: 'SIA502', country: 'Singapore', lat: 13.12, lon: 78.15, alt: 2100, spd: 140, trk: 272, vRate: -5, type: 'COMMERCIAL' },
-
-    // 3. Dedicated Air Cargo Freighters
-    { callsign: 'BPA201', country: 'India', lat: 12.85, lon: 77.62, alt: 3600, spd: 165, trk: 350, vRate: 8, type: 'CARGO' },
-    { callsign: 'QNZ412', country: 'India', lat: 13.48, lon: 77.92, alt: 5400, spd: 190, trk: 245, vRate: -7, type: 'CARGO' },
-
-    // 4. Military Defense & Tactical
-    { callsign: 'IFC29', country: 'India', lat: 13.18, lon: 77.55, alt: 4800, spd: 280, trk: 90, vRate: 14, type: 'MILITARY' },
-    { callsign: 'HAL01', country: 'India', lat: 12.98, lon: 77.68, alt: 3100, spd: 230, trk: 88, vRate: 0, type: 'MILITARY' },
-
-    // 5. Regional Feeder & Turboprop
-    { callsign: 'LLR405', country: 'India', lat: 12.72, lon: 77.85, alt: 2400, spd: 145, trk: 335, vRate: -5, type: 'REGIONAL' },
-
-    // 6. Private Corporate Jet
-    { callsign: 'VT-RIL', country: 'India', lat: 13.38, lon: 77.40, alt: 7200, spd: 240, trk: 125, vRate: -8, type: 'PRIVATE' },
-
-    // 7. Rotary / Helicopter
-    { callsign: 'PAW12', country: 'India', lat: 12.96, lon: 77.72, alt: 600, spd: 75, trk: 280, vRate: 0, type: 'HELICOPTER' },
-  ];
-
-  return templates.map((t, idx) => {
-    const rawState = [
-      `8016${idx.toString(16)}a`,
-      t.callsign,
-      t.country,
-      Math.floor(Date.now() / 1000),
-      Math.floor(Date.now() / 1000),
-      t.lon,
-      t.lat,
-      t.alt,
-      false,
-      t.spd,
-      t.trk,
-      t.vRate,
-      null,
-      t.alt + 50,
-      '27' + (10 + idx),
-      false,
-      0,
-    ];
-    return processFlightState(rawState, center);
-  }).filter(Boolean);
-}
-
 const API_BASE = typeof window !== 'undefined' ? '' : 'http://localhost:5173';
 
 /**
- * Fetch live flights within the Bangalore FIR
+ * Fetch strictly real live flights within the Bangalore FIR (100% real ADS-B transponder data)
  */
 export async function fetchBangaloreFlights(center = RADAR_CENTERS.VOBL, maxRadiusKm = 150) {
   try {
@@ -510,8 +451,8 @@ export async function fetchBangaloreFlights(center = RADAR_CENTERS.VOBL, maxRadi
 
     if (states.length === 0) {
       return {
-        flights: getRealisticFallbackFlights(center),
-        source: 'simulated-airspace',
+        flights: [],
+        source: data.source || 'opensky-live',
         timestamp: Date.now(),
       };
     }
@@ -522,15 +463,15 @@ export async function fetchBangaloreFlights(center = RADAR_CENTERS.VOBL, maxRadi
       .sort((a, b) => a.distanceKm - b.distanceKm);
 
     return {
-      flights: processed.length > 0 ? processed : getRealisticFallbackFlights(center),
+      flights: processed,
       source: data.source || 'opensky-live',
       timestamp: Date.now(),
     };
   } catch (err) {
-    console.warn('Flight fetch error, falling back to simulated traffic:', err);
+    console.warn('Live flight fetch error:', err.message);
     return {
-      flights: getRealisticFallbackFlights(center),
-      source: 'simulated-offline',
+      flights: [],
+      source: 'offline',
       timestamp: Date.now(),
     };
   }

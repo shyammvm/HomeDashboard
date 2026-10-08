@@ -2,6 +2,7 @@ import express from 'express';
 import cors from 'cors';
 import ical from 'node-ical';
 import Parser from 'rss-parser';
+import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
@@ -60,6 +61,59 @@ function extractRssImageUrl(item) {
   }
   return url || null;
 }
+
+// Centralized settings persistence
+const SETTINGS_FILE = path.join(__dirname, 'dashboard-settings.json');
+
+function readLocalSettingsFile() {
+  try {
+    if (fs.existsSync(SETTINGS_FILE)) {
+      return JSON.parse(fs.readFileSync(SETTINGS_FILE, 'utf-8'));
+    }
+  } catch (err) {
+    console.warn('Could not read dashboard-settings.json:', err.message);
+  }
+  return null;
+}
+
+function writeLocalSettingsFile(data) {
+  try {
+    fs.writeFileSync(SETTINGS_FILE, JSON.stringify(data, null, 2), 'utf-8');
+  } catch (err) {
+    console.warn('Could not write dashboard-settings.json:', err.message);
+  }
+}
+
+let activeSettings = readLocalSettingsFile();
+
+// Centralized Settings endpoints (Syncs TV, Phone, and Laptop)
+app.get('/api/settings', (req, res) => {
+  const current = activeSettings || readLocalSettingsFile();
+  res.json({
+    status: 'ok',
+    settings: current,
+    updatedAt: current?.updatedAt || 0,
+  });
+});
+
+app.post('/api/settings', (req, res) => {
+  const incoming = req.body;
+  if (!incoming || typeof incoming !== 'object') {
+    return res.status(400).json({ error: 'Invalid settings body' });
+  }
+  const merged = {
+    ...activeSettings,
+    ...incoming,
+    updatedAt: incoming.updatedAt || Date.now(),
+  };
+  activeSettings = merged;
+  writeLocalSettingsFile(merged);
+  res.json({
+    status: 'ok',
+    settings: merged,
+    updatedAt: merged.updatedAt,
+  });
+});
 
 // Health check endpoint for Render
 app.get('/api/health', (req, res) => {

@@ -27,16 +27,33 @@ export const WMO_WEATHER_CODES = {
 
 export async function fetchCoordinatesForCity(city) {
   if (!city) return null;
-  const clean = city.trim();
+  let clean = city.trim().replace(/^[\(\[\{]/, '').replace(/[\)\]\}]$/, '').trim();
 
-  // Direct coordinate match (e.g. "12.9716, 77.5946" or "12.9716,77.5946")
-  const coordMatch = clean.match(/^([-+]?[0-9]*\.?[0-9]+)\s*,\s*([-+]?[0-9]*\.?[0-9]+)$/);
+  // Direct coordinate match (e.g. "12.9716, 77.5946", "12.9716,77.5946", or "12.9716 77.5946")
+  const coordMatch = clean.match(/^([-+]?[0-9]*\.?[0-9]+)\s*[, \t/]+\s*([-+]?[0-9]*\.?[0-9]+)$/);
   if (coordMatch) {
     const lat = parseFloat(coordMatch[1]);
     const lon = parseFloat(coordMatch[2]);
     if (!isNaN(lat) && !isNaN(lon) && lat >= -90 && lat <= 90 && lon >= -180 && lon <= 180) {
       return {
-        name: `${lat.toFixed(3)}, ${lon.toFixed(3)}`,
+        name: `${lat.toFixed(4)}, ${lon.toFixed(4)}`,
+        country: '',
+        lat,
+        lon,
+      };
+    }
+  }
+
+  // Also support N/S, E/W notation (e.g. "12.9716 N, 77.5946 E")
+  const geoMatch = clean.match(/^([0-9]*\.?[0-9]+)\s*°?\s*([NSns])\s*[, \t/]+\s*([0-9]*\.?[0-9]+)\s*°?\s*([EWew])$/);
+  if (geoMatch) {
+    let lat = parseFloat(geoMatch[1]);
+    if (geoMatch[2].toUpperCase() === 'S') lat = -lat;
+    let lon = parseFloat(geoMatch[3]);
+    if (geoMatch[4].toUpperCase() === 'W') lon = -lon;
+    if (!isNaN(lat) && !isNaN(lon) && lat >= -90 && lat <= 90 && lon >= -180 && lon <= 180) {
+      return {
+        name: `${lat.toFixed(4)}, ${lon.toFixed(4)}`,
         country: '',
         lat,
         lon,

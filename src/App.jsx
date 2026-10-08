@@ -5,10 +5,10 @@ import HeroTimeWeather from './components/HeroTimeWeather';
 import CalendarCard from './components/CalendarCard';
 import TasksCard from './components/TasksCard';
 import ExpenseTrackerCard from './components/ExpenseTrackerCard';
-import BangaloreTrafficView from './components/BangaloreTrafficView';
 import StarkTacticalDeck from './components/StarkTacticalDeck';
-import RadarCard from './components/RadarCard';
 import SettingsModal from './components/SettingsModal';
+import RemoteControlModal from './components/RemoteControlModal';
+import RemoteSettingsView from './components/RemoteSettingsView';
 
 import { DASHBOARD_CONFIG } from './config';
 import {
@@ -20,38 +20,31 @@ import { fetchCalendarEvents } from './services/calendarService';
 import { fetchGoogleTasks } from './services/tasksService';
 import { fetchRssFeed } from './services/rssService';
 import { calculateLiveCommute } from './services/commuteService';
-
-const DEFAULT_CONFIG = {
-  userName: DASHBOARD_CONFIG.userName || 'Shyam',
-  city: DASHBOARD_CONFIG.city || 'Your Location',
-  homeAddress: DASHBOARD_CONFIG.homeAddress || 'Whitefield, Bangalore',
-  officeAddress: DASHBOARD_CONFIG.officeAddress || 'RMZ Ecoworld, Bellandur, Bangalore',
-  officeName: DASHBOARD_CONFIG.officeName || 'Work / EcoWorld',
-  currency: DASHBOARD_CONFIG.currency || '₹',
-  expenseTrackerApiUrl: DASHBOARD_CONFIG.expenseTrackerApiUrl || 'https://smartexpensetracker-vtkb.onrender.com',
-  expenseTrackerSecret: DASHBOARD_CONFIG.expenseTrackerSecret || '2546698',
-  rssUrl: DASHBOARD_CONFIG.rssUrl || 'https://feeds.bbci.co.uk/news/world/rss.xml',
-  newsCycleSeconds: DASHBOARD_CONFIG.newsCycleSeconds || 35,
-  rotation: DASHBOARD_CONFIG.rotation || 0,
-  lcdSleepMode: DASHBOARD_CONFIG.lcdSleepMode || false,
-  lcdSleepStart: DASHBOARD_CONFIG.lcdSleepStart || '23:30',
-  lcdSleepEnd: DASHBOARD_CONFIG.lcdSleepEnd || '06:30',
-};
+import {
+  getInitialSettings,
+  saveAndBroadcastSettings,
+  subscribeToSettings,
+  hasConfigChanges,
+  DEFAULT_CONFIG,
+} from './services/settingsSyncService';
 
 export default function App() {
-  const [config, setConfig] = useState(() => {
-    try {
-      const saved = localStorage.getItem('aether_config');
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (parsed.city === 'Chennai') parsed.city = 'Your Location';
-        return { ...DEFAULT_CONFIG, ...parsed };
-      }
-      return DEFAULT_CONFIG;
-    } catch {
-      return DEFAULT_CONFIG;
-    }
+  const [config, setConfig] = useState(() => getInitialSettings());
+
+  // Check if browser was opened in Remote Control / Settings mode (e.g. from Phone scanning TV QR code)
+  const [isRemoteView, setIsRemoteView] = useState(() => {
+    if (typeof window === 'undefined') return false;
+    const params = new URLSearchParams(window.location.search);
+    return (
+      params.get('remote') === '1' ||
+      params.get('settings') === '1' ||
+      window.location.hash === '#/remote' ||
+      window.location.hash === '#/settings'
+    );
   });
+
+  const [isRemoteModalOpen, setIsRemoteModalOpen] = useState(false);
+  const [remoteSyncToast, setRemoteSyncToast] = useState(null);
 
   // Centralized user location state (anchoring Weather, Traffic, & Flight Radar)
   const [userLocation, setUserLocation] = useState(() => {
@@ -84,11 +77,10 @@ export default function App() {
   const [newsArticles, setNewsArticles] = useState([]);
   const [isCalendarLive, setIsCalendarLive] = useState(false);
   const [expenseRefreshTrigger, setExpenseRefreshTrigger] = useState(0);
-  const [activeView, setActiveView] = useState('all'); // 'all', 'radar', or 'traffic'
 
   // Live Commute & LCD Sleep State
   const [commuteData, setCommuteData] = useState(null);
-  const [commuteDirection, setCommuteDirection] = useState('TO_OFFICE');
+  const [commuteDirection] = useState('TO_OFFICE');
   const [isSleepAwake, setIsSleepAwake] = useState(false);
   const [currentTimeStr, setCurrentTimeStr] = useState('');
 
@@ -127,18 +119,18 @@ export default function App() {
     }
   }, [config.homeAddress, config.officeAddress, config.officeName, userLocation, commuteDirection]);
 
-  const handleToggleCommuteDirection = useCallback(() => {
-    const nextDir = commuteDirection === 'TO_OFFICE' ? 'TO_HOME' : 'TO_OFFICE';
-    setCommuteDirection(nextDir);
-    loadCommute(nextDir);
-  }, [commuteDirection, loadCommute]);
-
-  // Synchronize location via GPS or configured city
+  // Synchronize location via GPS or configured city / coordinates
   const syncLocation = useCallback(async (overrideCity) => {
     if (overrideCity) {
       const geo = await fetchCoordinatesForCity(overrideCity);
       if (geo) {
-        const newLoc = { lat: geo.lat, lon: geo.lon, cityName: geo.name, isGps: false };
+        let cityName = geo.name;
+        // If coordinate numbers, try reverse geocode to get human-friendly locality name
+        if (/^[-+]?[0-9]/.test(cityName)) {
+          const rev = await reverseGeocodeCoordinates(geo.lat, geo.lon);
+          if (rev) cityName = rev;
+        }
+        const newLoc = { lat: geo.lat, lon: geo.lon, cityName, isGps: false };
         setUserLocation(newLoc);
         localStorage.setItem('aether_user_location', JSON.stringify(newLoc));
         loadWeather(newLoc);
@@ -257,24 +249,82 @@ export default function App() {
     };
   }, [userLocation, config.rssUrl, loadWeather, loadCalendar, loadTasks, loadNews, loadCommute]);
 
-  // Save config
-  const handleSaveConfig = (newConfig) => {
-    setConfig(newConfig);
-    localStorage.setItem('aether_config', JSON.stringify(newConfig));
-    if (newConfig.city !== config.city) {
-      syncLocation(newConfig.city);
-    }
-    if (newConfig.rssUrl !== config.rssUrl) loadNews(newConfig.rssUrl);
-    setExpenseRefreshTrigger(prev => prev + 1);
-  };
-
-  const handleRefreshAll = () => {
+  const handleRefreshAll = useCallback(() => {
     syncLocation();
     loadCalendar();
     loadTasks();
     loadNews(config.rssUrl);
     setExpenseRefreshTrigger(prev => prev + 1);
+  }, [syncLocation, loadCalendar, loadTasks, loadNews, config.rssUrl]);
+
+  // Centralized Settings Sync Subscription: Real-time listener for settings saved from Phone or Laptop
+  useEffect(() => {
+    const unsubscribe = subscribeToSettings((remoteConfig, source) => {
+      setConfig((prev) => {
+        if (hasConfigChanges(prev, remoteConfig)) {
+          // Visual notification on the TV screen
+          setRemoteSyncToast(`✦ SETTINGS SYNCED: UPDATED FROM ${source.toUpperCase()}`);
+          setTimeout(() => setRemoteSyncToast(null), 4500);
+
+          // If location changed, re-sync location and weather
+          if (remoteConfig.homeAddress !== prev.homeAddress || remoteConfig.city !== prev.city) {
+            syncLocation(remoteConfig.homeAddress || remoteConfig.city);
+          }
+          // If RSS changed, re-fetch news
+          if (remoteConfig.rssUrl !== prev.rssUrl) {
+            loadNews(remoteConfig.rssUrl);
+          }
+          // If commute changed, re-calculate commute
+          if (remoteConfig.officeAddress !== prev.officeAddress || remoteConfig.homeAddress !== prev.homeAddress) {
+            loadCommute();
+          }
+          // Refresh expenses
+          setExpenseRefreshTrigger(prevTrig => prevTrig + 1);
+
+          return remoteConfig;
+        }
+
+        // If remote refresh trigger changed (forced refresh from remote phone)
+        if (remoteConfig.remoteRefreshTrigger && remoteConfig.remoteRefreshTrigger !== prev.remoteRefreshTrigger) {
+          setRemoteSyncToast('⚡ REMOTE REFRESH COMMAND RECEIVED');
+          setTimeout(() => setRemoteSyncToast(null), 3000);
+          handleRefreshAll();
+          return remoteConfig;
+        }
+
+        return prev;
+      });
+    }, 12000); // Check every 12 seconds
+
+    return unsubscribe;
+  }, [syncLocation, loadNews, loadCommute, handleRefreshAll]);
+
+  // Save config and broadcast to all connected displays
+  const handleSaveConfig = async (newConfig) => {
+    setConfig(newConfig);
+    await saveAndBroadcastSettings(newConfig, 'Dashboard Config');
+    if (newConfig.city !== config.city || newConfig.homeAddress !== config.homeAddress) {
+      syncLocation(newConfig.homeAddress || newConfig.city);
+    }
+    if (newConfig.rssUrl !== config.rssUrl) loadNews(newConfig.rssUrl);
+    setExpenseRefreshTrigger(prev => prev + 1);
+    loadCommute();
   };
+
+  // If opened in Phone / Laptop Remote Mode, render the dedicated settings view
+  if (isRemoteView) {
+    return (
+      <RemoteSettingsView
+        initialConfig={config}
+        onBackToDashboard={() => {
+          setIsRemoteView(false);
+          if (typeof window !== 'undefined' && window.history) {
+            window.history.pushState({}, '', window.location.pathname);
+          }
+        }}
+      />
+    );
+  }
 
   const rotationClass = config.rotation ? `rotate-${config.rotation}` : '';
 
@@ -282,13 +332,22 @@ export default function App() {
     <>
       <AmbientBackground />
 
+      {/* Real-time Remote Sync HUD Toast for TV Display */}
+      {remoteSyncToast && (
+        <div className="stark-remote-toast-overlay" role="status">
+          <div className="stark-remote-toast-badge">
+            <span className="pulse-dot" style={{ backgroundColor: 'var(--stark-cyan)', width: 8, height: 8 }} />
+            <span>{remoteSyncToast}</span>
+          </div>
+        </div>
+      )}
+
       <main className={`dashboard-viewport ${rotationClass}`} id="dashboard-root">
         {/* Stark Industries Tactical HUD Telemetry Bar */}
         <StarkHudBar
           onOpenSettings={() => setIsSettingsOpen(true)}
+          onOpenRemote={() => setIsRemoteModalOpen(true)}
           onRefreshAll={handleRefreshAll}
-          activeView={activeView}
-          onSelectView={setActiveView}
           userName={config.userName}
         />
 
@@ -298,62 +357,35 @@ export default function App() {
           userName={config.userName}
         />
 
-        {/* Tactical Airspace & Cloud Radar (anchored to user's location) */}
-        {activeView === 'radar' && (
-          <div style={{ animation: 'fadeIn 0.3s ease' }}>
-            <RadarCard userLocation={userLocation} />
-          </div>
-        )}
+        {/* Full-Width Tactical Console (Radar, Normal Google Traffic Map & News Looping Slides) */}
+        <StarkTacticalDeck
+          newsArticles={newsArticles}
+          cycleSeconds={config.newsCycleSeconds || 16}
+          userLocation={userLocation}
+          commuteData={commuteData}
+        />
 
-        {/* Tactical Surface Traffic & Normal Google Map View (anchored to user's location) */}
-        {activeView === 'traffic' && (
-          <div style={{ animation: 'fadeIn 0.3s ease' }}>
-            <BangaloreTrafficView
-              onBack={() => setActiveView('all')}
-              userLocation={userLocation}
-              commuteData={commuteData}
-              commuteDirection={commuteDirection}
-              onToggleCommuteDirection={handleToggleCommuteDirection}
+        {/* 2-Column Split: Schedule & Tasks on Left | Expenses on Right */}
+        <div className="dashboard-grid-main">
+          {/* Left Column: Agenda & Focus */}
+          <div className="dashboard-column">
+            <CalendarCard events={calendarEvents} isLive={isCalendarLive} />
+            <TasksCard
+              tasks={tasks}
+              isSynced={isTasksSynced}
             />
           </div>
-        )}
 
-        {/* Full Dashboard Overview */}
-        {activeView === 'all' && (
-          <>
-            {/* Full-Width Tactical Console (Radar, Normal Google Traffic Map & News Looping Slides) */}
-            <StarkTacticalDeck
-              newsArticles={newsArticles}
-              onExpandRadar={() => setActiveView('radar')}
-              onExpandTraffic={() => setActiveView('traffic')}
-              cycleSeconds={config.newsCycleSeconds || 16}
-              userLocation={userLocation}
-              commuteData={commuteData}
+          {/* Right Column: Finance */}
+          <div className="dashboard-column">
+            <ExpenseTrackerCard
+              currency={config.currency}
+              apiUrl={config.expenseTrackerApiUrl}
+              secret={config.expenseTrackerSecret}
+              refreshTrigger={expenseRefreshTrigger}
             />
-
-            {/* 2-Column Split: Schedule & Tasks on Left | Expenses on Right */}
-            <div className="dashboard-grid-main">
-              {/* Left Column: Agenda & Focus */}
-              <div className="dashboard-column">
-                <CalendarCard events={calendarEvents} isLive={isCalendarLive} />
-                <TasksCard
-                  tasks={tasks}
-                  isSynced={isTasksSynced}
-                />
-              </div>
-
-              {/* Right Column: Finance */}
-              <div className="dashboard-column">
-                <ExpenseTrackerCard
-                  currency={config.currency}
-                  apiUrl={config.expenseTrackerApiUrl}
-                  secret={config.expenseTrackerSecret}
-                  refreshTrigger={expenseRefreshTrigger}
-                />
-              </div>
-            </div>
-          </>
-        )}
+          </div>
+        </div>
       </main>
 
       {/* LCD TV Standby & Night Sleep Dimmer */}
@@ -373,12 +405,26 @@ export default function App() {
         </div>
       )}
 
-      {/* Settings Modal */}
+      {/* Remote Control Modal (QR Code & Phone Link) */}
+      <RemoteControlModal
+        isOpen={isRemoteModalOpen}
+        onClose={() => setIsRemoteModalOpen(false)}
+        onOpenLocalSettings={() => {
+          setIsRemoteModalOpen(false);
+          setIsSettingsOpen(true);
+        }}
+      />
+
+      {/* Settings Modal (Local Device Settings) */}
       <SettingsModal
         isOpen={isSettingsOpen}
         onClose={() => setIsSettingsOpen(false)}
         config={config}
         onSaveConfig={handleSaveConfig}
+        onOpenRemoteModal={() => {
+          setIsSettingsOpen(false);
+          setIsRemoteModalOpen(true);
+        }}
       />
     </>
   );

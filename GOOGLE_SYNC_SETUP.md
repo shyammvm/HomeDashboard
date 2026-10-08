@@ -64,4 +64,6 @@ export const DASHBOARD_CONFIG = {
 - **Google Calendar**: Your primary calendar events for the next 14 days stream automatically with the glowing **"GOOGLE SYNC"** badge and live meeting countdowns.
 - **Google Tasks**: All your tasks (across all task lists) appear directly in the **"Daily Tasks & Focus"** card with the **"GOOGLE TASKS"** badge, due dates, priority markers, and completion status.
 - **24×7 Auto-Refresh**: Calendar refreshes every 10 minutes, and Google Tasks refreshes every 5 minutes automatically.
-- **No Manual Settings Needed**: The calendar setting input has been removed from the UI so your dashboard runs unattended.
+- **Centralized Settings Sync**: All dashboard preferences (greeting, commute origins, office tech parks, LCD TV night sleep timers, RSS feeds, rotation) are synced between your Phone, Laptop, and TV.
+- **📱 Remote Editing on Phone/Laptop**: On your TV, click **REMOTE** to scan the QR code with your phone camera, or open `https://<your-dashboard-url>/?remote=1` on your laptop. Any changes saved there broadcast to the TV within seconds!
+

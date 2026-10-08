@@ -2,6 +2,8 @@ import react from '@vitejs/plugin-react';
 import { defineConfig } from 'vite';
 import ical from 'node-ical';
 import Parser from 'rss-parser';
+import fs from 'fs';
+import path from 'path';
 
 const rssParser = new Parser({
   timeout: 10000,
@@ -59,6 +61,47 @@ function apiProxyPlugin() {
       server.middlewares.use(async (req, res, next) => {
         try {
           const urlObj = new URL(req.url, 'http://localhost:5173');
+
+          // Centralized settings sync handler
+          if (urlObj.pathname === '/api/settings') {
+            const settingsFile = path.resolve(process.cwd(), 'dashboard-settings.json');
+            res.setHeader('Content-Type', 'application/json');
+
+            if (req.method === 'GET') {
+              let saved = null;
+              try {
+                if (fs.existsSync(settingsFile)) {
+                  saved = JSON.parse(fs.readFileSync(settingsFile, 'utf-8'));
+                }
+              } catch (e) {
+                console.warn('Vite proxy settings read error:', e);
+              }
+              return res.end(JSON.stringify({ status: 'ok', settings: saved, updatedAt: saved?.updatedAt || 0 }));
+            }
+
+            if (req.method === 'POST') {
+              let body = '';
+              req.on('data', chunk => { body += chunk; });
+              req.on('end', () => {
+                try {
+                  const incoming = JSON.parse(body || '{}');
+                  let current = {};
+                  try {
+                    if (fs.existsSync(settingsFile)) {
+                      current = JSON.parse(fs.readFileSync(settingsFile, 'utf-8'));
+                    }
+                  } catch { }
+                  const merged = { ...current, ...incoming, updatedAt: incoming.updatedAt || Date.now() };
+                  fs.writeFileSync(settingsFile, JSON.stringify(merged, null, 2), 'utf-8');
+                  return res.end(JSON.stringify({ status: 'ok', settings: merged, updatedAt: merged.updatedAt }));
+                } catch (err) {
+                  res.statusCode = 400;
+                  return res.end(JSON.stringify({ error: 'Invalid JSON body', details: err.message }));
+                }
+              });
+              return;
+            }
+          }
 
           // Calendar proxy
           if (urlObj.pathname === '/api/calendar') {
