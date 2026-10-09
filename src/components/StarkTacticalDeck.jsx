@@ -302,8 +302,22 @@ export default function StarkTacticalDeck({
 
     return mapped
       .filter((f) => f && f.distanceKm <= RADAR_RANGE_KM)
-      .sort((a, b) => a.distanceKm - b.distanceKm);
+      .sort((a, b) => {
+        const aGround = Boolean(a.onGround) || ((a.altitudeFt || 0) <= 200 && (a.speedKts || 0) < 40);
+        const bGround = Boolean(b.onGround) || ((b.altitudeFt || 0) <= 200 && (b.speedKts || 0) < 40);
+
+        // 1. Keep aircraft in the air at the top of the table
+        if (!aGround && bGround) return -1;
+        if (aGround && !bGround) return 1;
+
+        // 2. Secondary sort: closest distance first
+        return a.distanceKm - b.distanceKm;
+      });
   }, [radarFlights, activeRadarCenter, RADAR_RANGE_KM]);
+
+  const airborneCount = useMemo(() => {
+    return visibleFlights.filter((f) => !Boolean(f.onGround) && !((f.altitudeFt || 0) <= 200 && (f.speedKts || 0) < 40)).length;
+  }, [visibleFlights]);
 
   // 4. Airspace Radar Canvas Animation (50 km scope matching RadarCard)
   useEffect(() => {
@@ -611,7 +625,16 @@ export default function StarkTacticalDeck({
       ctx.stroke();
 
       // 8. Flight ADS-B Contacts: Flight Trails, Silhouettes, Velocity Vectors & Ground De-cluttering
-      visibleFlights.forEach((flight, fIdx) => {
+      // Render ground aircraft first so airborne aircraft and their flight trails fly cleanly on top
+      const canvasSortedFlights = [...visibleFlights].sort((a, b) => {
+        const aGround = Boolean(a.onGround) || ((a.altitudeFt || 0) <= 200 && (a.speedKts || 0) < 40);
+        const bGround = Boolean(b.onGround) || ((b.altitudeFt || 0) <= 200 && (b.speedKts || 0) < 40);
+        if (aGround && !bGround) return -1; // ground rendered first underneath
+        if (!aGround && bGround) return 1;
+        return 0;
+      });
+
+      canvasSortedFlights.forEach((flight, fIdx) => {
         const pt = projectGeo(flight.lat, flight.lon);
         if (!pt) return;
         const { x: px, y: py } = pt;
@@ -969,7 +992,7 @@ export default function StarkTacticalDeck({
                                 height: 5,
                               }}
                             />
-                            <span>{visibleFlights.length} TRACKED AIRBORNE</span>
+                            <span>{airborneCount > 0 ? airborneCount : visibleFlights.length} TRACKED AIRBORNE</span>
                           </div>
                           <div className="compact-status-tag">
                             <span>
