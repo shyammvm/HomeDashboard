@@ -4558,10 +4558,45 @@ body {
 }
 
 /* Airspace Contacts Table & Column Header */
+.radar-color-mode-toggle {
+  display: inline-flex;
+  align-items: center;
+  background: rgba(2, 6, 23, 0.85);
+  border: 1px solid rgba(0, 240, 255, 0.2);
+  border-radius: 3px;
+  padding: 1px;
+  gap: 2px;
+}
+
+.color-mode-btn {
+  background: transparent;
+  border: none;
+  color: var(--text-dim);
+  font-family: var(--font-mono);
+  font-size: 7.5px;
+  font-weight: 700;
+  padding: 1px 5px;
+  border-radius: 2px;
+  cursor: pointer;
+  letter-spacing: 0.5px;
+  transition: all 0.15s ease;
+}
+
+.color-mode-btn.active {
+  background: rgba(0, 240, 255, 0.22);
+  color: var(--stark-cyan);
+  box-shadow: 0 0 6px rgba(0, 240, 255, 0.25);
+}
+
+.color-mode-btn:hover:not(.active) {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.06);
+}
+
 .radar-table-head {
   display: grid;
-  grid-template-columns: 1.45fr 60px 48px 46px 44px;
-  gap: 6px;
+  grid-template-columns: 1.3fr 42px 50px 42px 40px 40px;
+  gap: 5px;
   align-items: center;
   padding: 4px 6px;
   font-family: var(--font-mono);
@@ -4574,6 +4609,7 @@ body {
 }
 
 .radar-table-head .col-flight { text-align: left; }
+.radar-table-head .col-class { text-align: center; }
 .radar-table-head .col-type { text-align: center; }
 .radar-table-head .col-alt { text-align: right; }
 .radar-table-head .col-spd { text-align: right; }
@@ -4589,8 +4625,8 @@ body {
 
 .fw-contacts-list .tape-item {
   display: grid;
-  grid-template-columns: 1.45fr 60px 48px 46px 44px;
-  gap: 6px;
+  grid-template-columns: 1.3fr 42px 50px 42px 40px 40px;
+  gap: 5px;
   align-items: center;
   font-family: var(--font-mono);
   padding: 4px 6px;
@@ -4647,6 +4683,24 @@ body {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.tape-col-class {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.tape-class-badge {
+  font-family: var(--font-mono);
+  font-size: 7.5px;
+  font-weight: 800;
+  text-align: center;
+  padding: 1px 3.5px;
+  border-radius: 3px;
+  border: 1px solid;
+  letter-spacing: 0.5px;
+  white-space: nowrap;
 }
 
 .tape-col-type {
@@ -4733,6 +4787,11 @@ body {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
   gap: 4px 6px;
+}
+
+.legend-grid.type-mode {
+  grid-template-columns: repeat(3, 1fr);
+  gap: 5px 8px;
 }
 
 .legend-item {

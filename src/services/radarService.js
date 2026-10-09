@@ -120,11 +120,12 @@ export function getCompassDirection(deg) {
 /**
  * Classify aircraft type and operational role based on callsign, flight dynamics, and registry
  */
-export function classifyAircraft({ callsign, country, altFt, speedKts, vRateFpm, distanceKm, modelCode = '' }) {
+export function classifyAircraft({ callsign, country, altFt, speedKts, vRateFpm, distanceKm, modelCode = '', record = {} }) {
   const cs = (callsign || '').trim().toUpperCase();
-  const mc = (modelCode || '').trim().toUpperCase();
+  const mc = (modelCode || record?.t || '').trim().toUpperCase();
   const prefix3 = cs.slice(0, 3);
   const prefix2 = cs.slice(0, 2);
+  const isMilitaryDb = Boolean(record?.dbFlags && (record.dbFlags & 1));
 
   // Check known registry entry
   const regEntry = AIRLINE_REGISTRY[prefix3] || AIRLINE_REGISTRY[prefix2];
@@ -145,21 +146,36 @@ export function classifyAircraft({ callsign, country, altFt, speedKts, vRateFpm,
   else if (mc === 'E35L') explicitModel = 'Embraer Legacy 500';
   else if (mc === 'C56X') explicitModel = 'Cessna Citation XLS';
   else if (mc === 'GL5T' || mc === 'GLEX') explicitModel = 'Bombardier Global 5000';
+  else if (mc === 'ALH') explicitModel = 'HAL Dhruv ALH';
 
-  // 1. Military detection
+  // 1. Military & Army Defense detection
   if (
+    isMilitaryDb ||
     prefix3 === 'IFC' ||
     prefix3 === 'IAF' ||
     prefix3 === 'HAL' ||
+    cs.startsWith('ARMY') ||
+    cs.startsWith('NAVY') ||
+    cs.startsWith('CG') ||
+    cs.startsWith('SU30') ||
+    cs.startsWith('TEJAS') ||
     cs.startsWith('RAFI') ||
     cs.startsWith('INDIA') ||
-    cs.startsWith('DEF')
+    cs.startsWith('DEF') ||
+    mc === 'SU30' ||
+    mc === 'SU27' ||
+    mc === 'LCA' ||
+    mc === 'C17' ||
+    mc === 'IL76' ||
+    mc === 'AN32' ||
+    mc === 'MIR2' ||
+    mc === 'JAG'
   ) {
-    const isFighter = speedKts > 360 || altFt > 28000;
+    const isFighter = speedKts > 360 || altFt > 28000 || mc === 'SU30' || mc === 'LCA';
     return {
       category: 'MILITARY',
-      categoryLabel: 'Military Tactical',
-      categoryBadge: 'MIL',
+      categoryLabel: 'Army / Air Force (Defense)',
+      categoryBadge: 'ARMY',
       categoryColor: '#22c55e',
       categoryBg: 'rgba(34, 197, 94, 0.16)',
       aircraftType: explicitModel || (isFighter ? 'Su-30MKI / Tejas LCA' : 'IAF C-17 Globemaster'),
@@ -169,11 +185,17 @@ export function classifyAircraft({ callsign, country, altFt, speedKts, vRateFpm,
     };
   }
 
-  // 2. Helicopter / Rotary detection (slow speed, low alt or specific prefixes)
+  // 2. Helicopter / Rotary detection
   if (
+    mc === 'ALH' ||
+    mc === 'B06' ||
+    mc === 'EC35' ||
+    mc === 'EC45' ||
+    mc === 'H145' ||
     prefix3 === 'PAW' ||
     prefix3 === 'HLG' ||
     cs.startsWith('HELI') ||
+    record?.category === 'A7' ||
     (speedKts > 30 && speedKts < 135 && altFt < 3500)
   ) {
     return {
@@ -182,10 +204,10 @@ export function classifyAircraft({ callsign, country, altFt, speedKts, vRateFpm,
       categoryBadge: 'HELI',
       categoryColor: '#eab308',
       categoryBg: 'rgba(234, 179, 8, 0.16)',
-      aircraftType: explicitModel || 'HAL ALH Dhruv / Bell 412',
+      aircraftType: explicitModel || (mc === 'ALH' ? 'HAL Dhruv ALH' : 'Rotary Wing Helicopter'),
       aircraftClass: 'Twin-Engine Rotorcraft',
       wakeCategory: 'Light',
-      mission: 'VIP Air Shuttle / Emergency Medevac',
+      mission: 'Tactical Rotary / VIP Shuttle / Medevac',
     };
   }
 
@@ -255,7 +277,7 @@ export function classifyAircraft({ callsign, country, altFt, speedKts, vRateFpm,
     return {
       category: 'PRIVATE',
       categoryLabel: 'Private / Business Jet',
-      categoryBadge: 'BIZJET',
+      categoryBadge: 'VIP',
       categoryColor: '#c084fc',
       categoryBg: 'rgba(192, 132, 252, 0.16)',
       aircraftType: explicitModel || 'Executive Business Jet',
@@ -285,9 +307,9 @@ export function classifyAircraft({ callsign, country, altFt, speedKts, vRateFpm,
   return {
     category: 'COMMERCIAL',
     categoryLabel: isWidebody ? 'Commercial (Widebody)' : 'Commercial (Narrowbody)',
-    categoryBadge: isWidebody ? 'WIDEBODY' : 'PAX',
-    categoryColor: '#38bdf8',
-    categoryBg: 'rgba(56, 189, 248, 0.16)',
+    categoryBadge: isWidebody ? 'PAX-WB' : 'PAX',
+    categoryColor: '#00f0ff',
+    categoryBg: 'rgba(0, 240, 255, 0.16)',
     aircraftType: passengerModel,
     aircraftClass: isWidebody ? 'Widebody Commercial Jet' : 'Narrowbody Commercial Jet',
     wakeCategory: isWidebody ? 'Heavy' : 'Medium',
@@ -561,6 +583,7 @@ export function processAdsbRecord(record, center) {
     vRateFpm,
     distanceKm,
     modelCode,
+    record,
   });
 
   const phaseInfo = determineFlightPhase(Boolean(onGround), altFt, vRateFpm, distanceKm);

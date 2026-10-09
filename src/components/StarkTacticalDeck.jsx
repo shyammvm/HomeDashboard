@@ -81,6 +81,15 @@ export default function StarkTacticalDeck({
   const [cloudInfo, setCloudInfo] = useState(null);
   const [selectedFlight, setSelectedFlight] = useState(null);
 
+  // Flight Color Mode: 'type' (colors by PAX, ARMY, CARGO, HELI, VIP) or 'airline' (colors by IndiGo, Air India, etc.)
+  const [flightColorMode, setFlightColorMode] = useState(() => {
+    try {
+      return localStorage.getItem('stark_flight_color_mode') || 'type';
+    } catch {
+      return 'type';
+    }
+  });
+
   // Sub-state: Surface Traffic Map with dynamic scales (2km, 10km, 20km) & auto-oscillation
   const [trafficScaleKm, setTrafficScaleKm] = useState(() => {
     try {
@@ -603,7 +612,9 @@ export default function StarkTacticalDeck({
         const isSel = selectedFlight?.id === flight.id;
 
         // Velocity vector line
-        const flightColor = flight.airlineColor || flight.categoryColor || '#00f0ff';
+        const flightColor = flightColorMode === 'type'
+          ? (flight.categoryColor || '#00f0ff')
+          : (flight.airlineColor || flight.categoryColor || '#00f0ff');
         const headingRad = (((flight.heading || 0) - 90) * Math.PI) / 180;
         const vLen = Math.min(22, Math.max(8, ((flight.speedKts || 250) / 400) * 18));
         ctx.strokeStyle = isSel ? '#00f0ff' : flightColor;
@@ -735,7 +746,7 @@ export default function StarkTacticalDeck({
       isMounted = false;
       if (radarAnimRef.current) cancelAnimationFrame(radarAnimRef.current);
     };
-  }, [visibleFlights, cloudInfo, selectedFlight, activeSlide, activeRadarCenter, RADAR_RANGE_KM]);
+  }, [visibleFlights, cloudInfo, selectedFlight, activeSlide, activeRadarCenter, RADAR_RANGE_KM, flightColorMode]);
 
   // 5. News State Helpers
   const currentNews = newsArticles[newsIndex] || {
@@ -949,12 +960,39 @@ export default function StarkTacticalDeck({
 
                     <div className="tape-header-row">
                       <span className="tape-header">AIRSPACE CONTACTS (50KM)</span>
+                      <div className="radar-color-mode-toggle">
+                        <button
+                          type="button"
+                          className={`color-mode-btn ${flightColorMode === 'type' ? 'active' : ''}`}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setFlightColorMode('type');
+                            try { localStorage.setItem('stark_flight_color_mode', 'type'); } catch {}
+                          }}
+                          title="Color flights by Mission Type (PAX, ARMY, CARGO, HELI, VIP)"
+                        >
+                          TYPE
+                        </button>
+                        <button
+                          type="button"
+                          className={`color-mode-btn ${flightColorMode === 'airline' ? 'active' : ''}`}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setFlightColorMode('airline');
+                            try { localStorage.setItem('stark_flight_color_mode', 'airline'); } catch {}
+                          }}
+                          title="Color flights by Airline Brand (IndiGo, Air India, Akasa)"
+                        >
+                          AIRLINE
+                        </button>
+                      </div>
                       <span className="compact-news-counter">[{visibleFlights.length} TARGETS]</span>
                     </div>
 
                     <div className="radar-table-head">
                       <span className="col-flight">FLIGHT / OPERATOR</span>
-                      <span className="col-type">TYPE</span>
+                      <span className="col-class">CLASS</span>
+                      <span className="col-type">MODEL</span>
                       <span className="col-alt">ALT</span>
                       <span className="col-spd">SPD</span>
                       <span className="col-dist">DIST</span>
@@ -962,10 +1000,13 @@ export default function StarkTacticalDeck({
 
                     <div className="fw-contacts-list">
                       {visibleFlights.slice(0, 5).map((f) => {
-                        const flightColor = f.airlineColor || f.categoryColor || '#00f0ff';
+                        const flightColor = flightColorMode === 'type'
+                          ? (f.categoryColor || '#00f0ff')
+                          : (f.airlineColor || f.categoryColor || '#00f0ff');
                         const shortModel = getShortAircraftModel(f);
                         const companyName = f.airline || 'Civil Aircraft';
                         const flightId = f.flightNum || f.callsign || 'UNK';
+                        const classBadge = f.categoryBadge || (f.category === 'MILITARY' ? 'ARMY' : (f.category === 'COMMERCIAL' ? 'PAX' : 'CIV'));
                         const altText = f.onGround
                           ? 'GND'
                           : (f.flightLevel || (f.altitudeFt >= 10000 ? `FL${Math.round(f.altitudeFt / 100)}` : `${f.altitudeFt || 0}ft`));
@@ -980,12 +1021,12 @@ export default function StarkTacticalDeck({
                               e.stopPropagation();
                               setSelectedFlight(f);
                             }}
-                            title={`${flightId} • ${companyName} • ${shortModel} • ${altText} • ${spdText}`}
+                            title={`${flightId} • ${companyName} • ${classBadge} • ${shortModel} • ${altText} • ${spdText}`}
                           >
                             <div className="tape-col-flight">
                               <span
                                 className="tape-airline-dot"
-                                style={{ backgroundColor: flightColor, boxShadow: `0 0 6px ${flightColor}99` }}
+                                style={{ backgroundColor: flightColor, boxShadow: `0 0 6px ${flightColor}aa` }}
                               />
                               <div className="tape-flight-info">
                                 <span className="tape-callsign" style={{ color: flightColor }}>
@@ -996,11 +1037,20 @@ export default function StarkTacticalDeck({
                                 </span>
                               </div>
                             </div>
-                            <div className="tape-col-type">
+                            <div className="tape-col-class">
                               <span
-                                className="tape-model-badge"
-                                style={{ borderColor: `${flightColor}55`, color: flightColor }}
+                                className="tape-class-badge"
+                                style={{
+                                  borderColor: `${flightColor}55`,
+                                  color: flightColor,
+                                  background: `${flightColor}18`,
+                                }}
                               >
+                                {classBadge}
+                              </span>
+                            </div>
+                            <div className="tape-col-type">
+                              <span className="tape-model-badge">
                                 {shortModel}
                               </span>
                             </div>
@@ -1029,44 +1079,76 @@ export default function StarkTacticalDeck({
                       )}
                     </div>
 
-                    {/* Operator Color Legend */}
-                    <div className="radar-operator-legend">
-                      <div className="legend-title">OPERATOR COLOR IDENTIFIERS</div>
-                      <div className="legend-grid">
-                        <div className="legend-item" title="IndiGo">
-                          <span className="legend-color-dot" style={{ backgroundColor: '#0080ff' }} />
-                          <span className="legend-label">IndiGo</span>
-                        </div>
-                        <div className="legend-item" title="Air India">
-                          <span className="legend-color-dot" style={{ backgroundColor: '#e52424' }} />
-                          <span className="legend-label">Air India</span>
-                        </div>
-                        <div className="legend-item" title="Akasa Air">
-                          <span className="legend-color-dot" style={{ backgroundColor: '#ff6200' }} />
-                          <span className="legend-label">Akasa</span>
-                        </div>
-                        <div className="legend-item" title="Air India Express">
-                          <span className="legend-color-dot" style={{ backgroundColor: '#f97316' }} />
-                          <span className="legend-label">AI Express</span>
-                        </div>
-                        <div className="legend-item" title="SpiceJet">
-                          <span className="legend-color-dot" style={{ backgroundColor: '#ef4444' }} />
-                          <span className="legend-label">SpiceJet</span>
-                        </div>
-                        <div className="legend-item" title="Indian Air Force / Defense">
-                          <span className="legend-color-dot" style={{ backgroundColor: '#22c55e' }} />
-                          <span className="legend-label">IAF / Defense</span>
-                        </div>
-                        <div className="legend-item" title="Helicopters / Rotary">
-                          <span className="legend-color-dot" style={{ backgroundColor: '#eab308' }} />
-                          <span className="legend-label">Helicopter</span>
-                        </div>
-                        <div className="legend-item" title="Commercial & International">
-                          <span className="legend-color-dot" style={{ backgroundColor: '#38bdf8' }} />
-                          <span className="legend-label">Other / Int'l</span>
+                    {/* Flight Color Legend (Dynamic per Flight Color Mode) */}
+                    {flightColorMode === 'type' ? (
+                      <div className="radar-operator-legend">
+                        <div className="legend-title">FLIGHT TYPE & MISSION COLOR IDENTIFIERS</div>
+                        <div className="legend-grid type-mode">
+                          <div className="legend-item" title="Commercial Passenger Flights">
+                            <span className="legend-color-dot" style={{ backgroundColor: '#00f0ff' }} />
+                            <span className="legend-label">PAX (Commercial)</span>
+                          </div>
+                          <div className="legend-item" title="Army / Air Force / Tactical Defense">
+                            <span className="legend-color-dot" style={{ backgroundColor: '#22c55e' }} />
+                            <span className="legend-label">Army / Military</span>
+                          </div>
+                          <div className="legend-item" title="Dedicated Air Cargo & Freight">
+                            <span className="legend-color-dot" style={{ backgroundColor: '#f97316' }} />
+                            <span className="legend-label">Cargo / Freight</span>
+                          </div>
+                          <div className="legend-item" title="Rotary Wing Helicopters & Medevac">
+                            <span className="legend-color-dot" style={{ backgroundColor: '#eab308' }} />
+                            <span className="legend-label">Helicopter / Rotary</span>
+                          </div>
+                          <div className="legend-item" title="Private & Executive Business Jets">
+                            <span className="legend-color-dot" style={{ backgroundColor: '#c084fc' }} />
+                            <span className="legend-label">VIP / Private Jet</span>
+                          </div>
+                          <div className="legend-item" title="Regional Turboprop Feeder Flights">
+                            <span className="legend-color-dot" style={{ backgroundColor: '#06b6d4' }} />
+                            <span className="legend-label">Regional Feeder</span>
+                          </div>
                         </div>
                       </div>
-                    </div>
+                    ) : (
+                      <div className="radar-operator-legend">
+                        <div className="legend-title">OPERATOR / AIRLINE BRAND IDENTIFIERS</div>
+                        <div className="legend-grid">
+                          <div className="legend-item" title="IndiGo">
+                            <span className="legend-color-dot" style={{ backgroundColor: '#0080ff' }} />
+                            <span className="legend-label">IndiGo</span>
+                          </div>
+                          <div className="legend-item" title="Air India">
+                            <span className="legend-color-dot" style={{ backgroundColor: '#e52424' }} />
+                            <span className="legend-label">Air India</span>
+                          </div>
+                          <div className="legend-item" title="Akasa Air">
+                            <span className="legend-color-dot" style={{ backgroundColor: '#ff6200' }} />
+                            <span className="legend-label">Akasa</span>
+                          </div>
+                          <div className="legend-item" title="Air India Express">
+                            <span className="legend-color-dot" style={{ backgroundColor: '#f97316' }} />
+                            <span className="legend-label">AI Express</span>
+                          </div>
+                          <div className="legend-item" title="SpiceJet">
+                            <span className="legend-color-dot" style={{ backgroundColor: '#ef4444' }} />
+                            <span className="legend-label">SpiceJet</span>
+                          </div>
+                          <div className="legend-item" title="Indian Air Force / Defense">
+                            <span className="legend-color-dot" style={{ backgroundColor: '#22c55e' }} />
+                            <span className="legend-label">IAF / Defense</span>
+                          </div>
+                          <div className="legend-item" title="Helicopters / Rotary">
+                            <span className="legend-color-dot" style={{ backgroundColor: '#eab308' }} />
+                            <span className="legend-label">Helicopter</span>
+                          </div>
+                          <div className="legend-item" title="Commercial & International">
+                            <span className="legend-color-dot" style={{ backgroundColor: '#38bdf8' }} />
+                            <span className="legend-label">Other / Int'l</span>
+                          </div>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </div>
               )}
