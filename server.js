@@ -262,8 +262,8 @@ app.get('/api/expenses/recent', async (req, res) => {
 let flightsCache = { timestamp: 0, data: null };
 app.get('/api/radar/flights', async (req, res) => {
   const now = Date.now();
-  // 10-second cache to prevent OpenSky rate limiting
-  if (flightsCache.data && now - flightsCache.timestamp < 10000) {
+  // 45-second cache to prevent OpenSky rate limiting
+  if (flightsCache.data && now - flightsCache.timestamp < 45000) {
     return res.json({ ...flightsCache.data, cached: true });
   }
 
@@ -285,7 +285,9 @@ app.get('/api/radar/flights', async (req, res) => {
 
     if (response.ok) {
       const data = await response.json();
-      flightsCache = { timestamp: now, data };
+      if (data && data.states && data.states.length > 0) {
+        flightsCache = { timestamp: now, data };
+      }
       return res.json({ ...data, source: 'opensky-live', cached: false });
     } else {
       console.warn(`OpenSky returned status ${response.status}`);

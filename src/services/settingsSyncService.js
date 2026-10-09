@@ -10,21 +10,26 @@ const BROADCAST_CHANNEL_NAME = 'aether_settings_sync';
 // Default configuration baseline
 export const DEFAULT_CONFIG = {
   userName: DASHBOARD_CONFIG.userName || 'Shyam',
-  city: DASHBOARD_CONFIG.city || 'Your Location',
-  homeAddress: DASHBOARD_CONFIG.homeAddress || 'Whitefield, Bangalore',
-  officeAddress: DASHBOARD_CONFIG.officeAddress || 'RMZ Ecoworld, Bellandur, Bangalore',
-  officeName: DASHBOARD_CONFIG.officeName || 'Work / EcoWorld',
+  city: DASHBOARD_CONFIG.city || 'Home',
+  homeAddress: DASHBOARD_CONFIG.homeAddress || '12.971211, 77.735895',
+  officeAddress: DASHBOARD_CONFIG.officeAddress || '12.919583, 77.671528',
+  officeName: DASHBOARD_CONFIG.officeName || 'Office',
   currency: DASHBOARD_CONFIG.currency || '₹',
   expenseTrackerApiUrl: DASHBOARD_CONFIG.expenseTrackerApiUrl || 'https://smartexpensetracker-vtkb.onrender.com',
   expenseTrackerSecret: DASHBOARD_CONFIG.expenseTrackerSecret || '2546698',
+  googleSyncUrl: DASHBOARD_CONFIG.googleSyncUrl || '',
+  defaultCalendarUrl: DASHBOARD_CONFIG.defaultCalendarUrl || '',
   rssUrl: DASHBOARD_CONFIG.rssUrl || 'https://feeds.bbci.co.uk/news/world/rss.xml',
   newsCycleSeconds: DASHBOARD_CONFIG.newsCycleSeconds || 35,
   rotation: DASHBOARD_CONFIG.rotation || 0,
   lcdSleepMode: DASHBOARD_CONFIG.lcdSleepMode || false,
   lcdSleepStart: DASHBOARD_CONFIG.lcdSleepStart || '23:30',
   lcdSleepEnd: DASHBOARD_CONFIG.lcdSleepEnd || '06:30',
-  updatedAt: 0,
-  updatedBy: 'defaults',
+  tvKioskAutoReloadHours: DASHBOARD_CONFIG.tvKioskAutoReloadHours || 3,
+  autoCycleSlides: DASHBOARD_CONFIG.autoCycleSlides ?? true,
+  simulateOfflineFlights: DASHBOARD_CONFIG.simulateOfflineFlights ?? false,
+  updatedAt: DASHBOARD_CONFIG.updatedAt || 0,
+  updatedBy: DASHBOARD_CONFIG.updatedBy || 'defaults',
   remoteRefreshTrigger: 0,
 };
 
@@ -50,7 +55,9 @@ export function getInitialSettings() {
       const saved = localStorage.getItem(STORAGE_KEY);
       if (saved) {
         const parsed = JSON.parse(saved);
-        if (parsed.city === 'Chennai') parsed.city = 'Your Location';
+        if (parsed.city === 'Chennai' || parsed.city === 'Your Location') parsed.city = DEFAULT_CONFIG.city;
+        if (parsed.officeName === 'Work / EcoWorld') parsed.officeName = DEFAULT_CONFIG.officeName;
+        if (parsed.officeAddress === 'RMZ Ecoworld, Bellandur, Bangalore') parsed.officeAddress = DEFAULT_CONFIG.officeAddress;
         return { ...DEFAULT_CONFIG, ...parsed };
       }
     }

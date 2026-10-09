@@ -3,6 +3,27 @@ import { createRoot } from 'react-dom/client'
 import './index.css'
 import App from './App.jsx'
 
+// Ensure browser does not restore stale scroll offsets
+if (typeof window !== 'undefined' && 'scrollRestoration' in window.history) {
+  window.history.scrollRestoration = 'manual';
+  window.scrollTo(0, 0);
+}
+
+// Smart TV WebView compatibility polyfill for AbortSignal.timeout (Chromium < 103)
+if (typeof window !== 'undefined' && typeof AbortSignal !== 'undefined' && !AbortSignal.timeout) {
+  AbortSignal.timeout = function (ms) {
+    const controller = new AbortController();
+    setTimeout(() => {
+      try {
+        controller.abort(new DOMException('The operation timed out', 'TimeoutError'));
+      } catch {
+        controller.abort();
+      }
+    }, ms);
+    return controller.signal;
+  };
+}
+
 class GlobalErrorBoundary extends Component {
   constructor(props) {
     super(props);

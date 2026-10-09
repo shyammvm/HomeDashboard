@@ -40,9 +40,10 @@ export default function TasksCard({
       <div className="card-section-header">
         <div className="card-title-group">
           <div className="card-title-icon icon-tasks">
-            <CheckSquare size={18} />
+            <CheckSquare size={16} />
           </div>
           <div>
+            <div className="card-section-super">SEC-ACT // PROTOCOLS</div>
             <h2 className="card-section-title">Directives & Tasks</h2>
           </div>
         </div>
@@ -56,46 +57,37 @@ export default function TasksCard({
           }}
         >
           {isSynced && <span className="pulse-dot" style={{ backgroundColor: 'var(--accent-emerald)', width: 6, height: 6 }} />}
-          {isSynced ? 'GOOGLE TASKS' : 'TASK FEED'} • {totalToday > 0 ? `${doneTodayTasks.length}/${totalToday} DONE` : 'ALL CLEAR'}
+          {isSynced ? 'GOOGLE TASKS' : 'LOCAL LIST'} • {totalToday > 0 ? `${doneTodayTasks.length}/${totalToday} DONE` : 'NOMINAL'}
         </span>
       </div>
 
-      {/* Today's Progress Bar */}
+      {/* Today's Tactical Progress Bar */}
       <div className="task-header-row">
         <div className="task-progress-track">
           <div
             className="task-progress-fill"
             style={{
               width: `${progressPercent}%`,
-              background: 'linear-gradient(90deg, var(--accent-emerald), var(--accent-cyan))',
+              background: 'linear-gradient(90deg, var(--accent-cyan), var(--accent-emerald))',
             }}
           />
         </div>
-        <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--accent-emerald)', minWidth: 50, textAlign: 'right' }}>
+        <span className="task-progress-val">
           {progressPercent}%
         </span>
       </div>
 
       {/* Filter Tabs */}
-      <div style={{ display: 'flex', gap: 6, marginBottom: 12 }}>
+      <div className="task-filter-pills-row">
         {[
-          { key: 'all', label: `All (${tasks.length})` },
-          { key: 'pending', label: `Pending (${pendingTasks.length})` },
-          { key: 'done', label: `Done Today (${doneTodayTasks.length})` },
+          { key: 'all', label: `ALL [${tasks.length}]` },
+          { key: 'pending', label: `ACTIVE [${pendingTasks.length}]` },
+          { key: 'done', label: `CLEARED [${doneTodayTasks.length}]` },
         ].map((tab) => (
           <button
             key={tab.key}
             onClick={() => setFilter(tab.key)}
-            style={{
-              background: filter === tab.key ? 'rgba(52, 211, 153, 0.15)' : 'rgba(255, 255, 255, 0.03)',
-              color: filter === tab.key ? 'var(--accent-emerald)' : 'var(--text-dim)',
-              border: filter === tab.key ? '1px solid rgba(52, 211, 153, 0.3)' : '1px solid var(--border-subtle)',
-              borderRadius: 6,
-              padding: '3px 9px',
-              fontSize: 11,
-              fontWeight: 600,
-              cursor: 'pointer',
-            }}
+            className={`task-filter-pill ${filter === tab.key ? 'active' : ''}`}
           >
             {tab.label}
           </button>
@@ -105,13 +97,20 @@ export default function TasksCard({
       {/* Task Items (View-Only Ambient List) */}
       <div className="task-list custom-scroll">
         {filteredTasks.length === 0 ? (
-          <div style={{ textAlign: 'center', padding: '24px 0', color: 'var(--text-dim)', fontSize: 12.5 }}>
-            <Sparkles size={20} style={{ margin: '0 auto 6px', opacity: 0.5, color: 'var(--accent-emerald)' }} />
-            {filter === 'done'
-              ? 'No tasks completed yet today.'
-              : totalToday === 0
-                ? (isSynced ? 'All directives complete • No pending tasks' : 'No tasks synced • Configure Google Sync URL in Settings')
-                : 'No tasks in this view.'}
+          <div className="tactical-empty-box">
+            <div className="tactical-empty-reticle">
+              <CheckSquare size={20} color="var(--stark-cyan)" />
+            </div>
+            <div className="tactical-empty-title">
+              {filter === 'done'
+                ? 'STANDBY // ZERO PROTOCOLS CLEARED TODAY'
+                : totalToday === 0
+                  ? 'DIRECTIVES NOMINAL // 0 PENDING ACTIONS'
+                  : 'ZERO DIRECTIVES IN ACTIVE FILTER'}
+            </div>
+            <div className="tactical-empty-sub">
+              {isSynced ? 'GOOGLE TASKS ENGINE ACTIVE • ALL ACTIONS CLEARED' : 'LOCAL ENGINE NOMINAL • CONFIGURE CLOUD SYNC IN SETTINGS'}
+            </div>
           </div>
         ) : (
           filteredTasks.map((t) => {

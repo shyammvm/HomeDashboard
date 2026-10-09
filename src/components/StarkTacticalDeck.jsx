@@ -3,19 +3,22 @@ import {
   Radio,
   Newspaper,
   Car,
-  Play,
-  Pause,
   ChevronLeft,
   ChevronRight,
   ExternalLink,
   MapPin,
   Briefcase,
+  ArrowRightLeft,
+  Activity,
+  Pause,
+  Play,
 } from 'lucide-react';
 
 import GoogleTrafficMap from './GoogleTrafficMap';
 import {
   fetchBangaloreFlights,
   fetchBangaloreCloudInfo,
+  getCachedFlights,
   calculateDistanceKm,
   calculateBearingDeg,
 } from '../services/radarService';
@@ -36,12 +39,24 @@ import {
 export default function StarkTacticalDeck({
   newsArticles = [],
   cycleSeconds = 18,
+  autoCycle = true,
   userLocation = { lat: 12.9716, lon: 77.7473, cityName: 'Your Location' },
   commuteData = null,
+  onToggleCommuteDirection = null,
 }) {
-  // Main deck active slide: 0 = AIRSPACE RADAR, 1 = SURFACE TRAFFIC, 2 = SATELLITE INTEL
-  const [activeSlide, setActiveSlide] = useState(0);
-  const [isPaused, setIsPaused] = useState(false);
+  // Main deck active slide: 0 = SURFACE TRAFFIC, 1 = AIRSPACE RADAR, 2 = SATELLITE INTEL
+  const [activeSlide, setActiveSlide] = useState(() => {
+    try {
+      const urlParams = new URLSearchParams(window.location.search);
+      const s = urlParams.get('slide');
+      if (s !== null) {
+        const parsed = parseInt(s, 10);
+        if ([0, 1, 2].includes(parsed)) return parsed;
+      }
+    } catch {}
+    return 0;
+  });
+  const [isPaused, setIsPaused] = useState(!autoCycle || cycleSeconds <= 0);
   const [isHovered, setIsHovered] = useState(false);
   const [progress, setProgress] = useState(0);
 
@@ -51,12 +66,31 @@ export default function StarkTacticalDeck({
 
   // Sub-state: Airspace Radar (Strictly 50 km range on homescreen, no selectable options)
   const RADAR_RANGE_KM = 50;
-  const [radarFlights, setRadarFlights] = useState([]);
+  const [radarFlights, setRadarFlights] = useState(() => getCachedFlights(userLocation, 75));
   const [cloudInfo, setCloudInfo] = useState(null);
   const [selectedFlight, setSelectedFlight] = useState(null);
 
-  // Sub-state: Surface Traffic Map (Strictly 10 km scale full-width on homescreen)
-  const TRAFFIC_RANGE_KM = 10;
+  // Sub-state: Surface Traffic Map with dynamic scales (2km, 10km, 20km) & auto-oscillation
+  const [trafficScaleKm, setTrafficScaleKm] = useState(() => {
+    try {
+      const saved = Number(localStorage.getItem('stark_traffic_scale_km'));
+      return [2, 10, 20].includes(saved) ? saved : 10;
+    } catch {
+      return 10;
+    }
+  });
+
+  const [isOscillating, setIsOscillating] = useState(() => {
+    try {
+      const saved = localStorage.getItem('stark_traffic_oscillate');
+      if (saved !== null) return saved === 'true';
+      return true; // Oscillate between scales by default
+    } catch {
+      return true;
+    }
+  });
+  const oscillateDirRef = useRef(1); // 1 = expanding (3 -> 10 -> 20), -1 = contracting (20 -> 10 -> 3)
+
   const [trafficData, setTrafficData] = useState(null);
 
   const radarCanvasRef = useRef(null);
@@ -76,7 +110,7 @@ export default function StarkTacticalDeck({
       { id: '09L/27R', heading: 92, lengthM: 4000 },
       { id: '09R/27L', heading: 92, lengthM: 4000 },
     ],
-  }), [userLocation]);
+  }), [userLocation?.lat, userLocation?.lon, userLocation?.cityName]);
 
   const activeTrafficCenter = useMemo(() => ({
     key: 'USER',
@@ -84,14 +118,72 @@ export default function StarkTacticalDeck({
     shortName: (userLocation?.cityName || 'MY LOCATION').split(',')[0].toUpperCase(),
     lat: userLocation?.lat || 12.9716,
     lon: userLocation?.lon || 77.7473,
-  }), [userLocation]);
+  }), [userLocation?.lat, userLocation?.lon, userLocation?.cityName]);
 
-  // Deck slide names & icons
+  // Deck slide names & icons: Traffic (0), Radar (1), News (2)
   const SLIDES = useMemo(() => [
-    { id: 0, key: 'radar', title: 'AIRSPACE RADAR', icon: Radio, tag: '50KM SCOPE' },
-    { id: 1, key: 'traffic', title: 'SURFACE TRAFFIC', icon: Car, tag: '10KM MAP' },
-    { id: 2, key: 'news', title: 'SATELLITE INTEL', icon: Newspaper, tag: 'OSCILLATING' },
-  ], []);
+    {
+      id: 0,
+      key: 'traffic',
+      code: 'SYS-01',
+      title: 'SURFACE TRAFFIC',
+      icon: Car,
+      tag: commuteData
+        ? `${commuteData.liveEtaMinutes}M COMMUTE`
+        : isOscillating
+          ? `∿ ${trafficScaleKm}KM AUTO`
+          : `${trafficScaleKm}KM MAP`,
+    },
+    {
+      id: 1,
+      key: 'radar',
+      code: 'SYS-02',
+      title: 'AIRSPACE RADAR',
+      icon: Radio,
+      tag: '50KM SCOPE',
+    },
+    {
+      id: 2,
+      key: 'news',
+      code: 'SYS-03',
+      title: 'SATELLITE INTEL',
+      icon: Newspaper,
+      tag: 'GLOBAL DISPATCH',
+    },
+  ], [commuteData, trafficScaleKm, isOscillating]);
+
+  // Auto-oscillate between 2km, 10km, and 20km scales (8 second interval)
+  useEffect(() => {
+    if (!isOscillating) return;
+
+    const interval = setInterval(() => {
+      setTrafficScaleKm((curr) => {
+        const scales = [2, 10, 20];
+        let dir = oscillateDirRef.current;
+        let idx = scales.indexOf(curr);
+        if (idx === -1) idx = 1;
+
+        let nextIdx = idx + dir;
+        if (nextIdx >= scales.length) {
+          dir = -1;
+          oscillateDirRef.current = -1;
+          nextIdx = scales.length - 2; // from 20 -> 10
+        } else if (nextIdx < 0) {
+          dir = 1;
+          oscillateDirRef.current = 1;
+          nextIdx = 1; // from 2 -> 10
+        }
+
+        const nextScale = scales[nextIdx];
+        try {
+          localStorage.setItem('stark_traffic_scale_km', String(nextScale));
+        } catch {}
+        return nextScale;
+      });
+    }, 8000);
+
+    return () => clearInterval(interval);
+  }, [isOscillating]);
 
   // 1. Deck Auto-looping Timer
   useEffect(() => {
@@ -128,14 +220,13 @@ export default function StarkTacticalDeck({
     setProgress(0);
   };
 
-  const handlePrevSlide = () => {
-    setActiveSlide((curr) => (curr - 1 + SLIDES.length) % SLIDES.length);
-    setProgress(0);
-  };
-
-  const handleNextSlide = () => {
-    setActiveSlide((curr) => (curr + 1) % SLIDES.length);
-    setProgress(0);
+  const handleTabClick = (slideId) => {
+    if (activeSlide === slideId) {
+      setIsPaused((prev) => !prev);
+    } else {
+      setActiveSlide(slideId);
+      setProgress(0);
+    }
   };
 
   // 2. Airspace Radar Data (50 km scope)
@@ -157,19 +248,19 @@ export default function StarkTacticalDeck({
 
   useEffect(() => {
     loadRadarData();
-    const interval = setInterval(loadRadarData, 12000);
+    const interval = setInterval(loadRadarData, 30000);
     return () => clearInterval(interval);
   }, [loadRadarData]);
 
-  // 3. Traffic Data (10 km scale)
+  // 3. Traffic Data (dynamically scaled according to active scale)
   const loadTrafficData = useCallback(async () => {
     try {
-      const data = await fetchLiveTrafficData(activeTrafficCenter, TRAFFIC_RANGE_KM);
+      const data = await fetchLiveTrafficData(activeTrafficCenter, trafficScaleKm);
       setTrafficData(data);
     } catch {
       // Background catch
     }
-  }, [activeTrafficCenter, TRAFFIC_RANGE_KM]);
+  }, [activeTrafficCenter, trafficScaleKm]);
 
   useEffect(() => {
     loadTrafficData();
@@ -180,7 +271,7 @@ export default function StarkTacticalDeck({
   // Filter & calculate polar coordinates for flights in 50 km scope
   const visibleFlights = useMemo(() => {
     const list = Array.isArray(radarFlights) ? radarFlights : (radarFlights?.flights || []);
-    return list
+    const mapped = list
       .map((f) => {
         const dist = calculateDistanceKm(activeRadarCenter.lat, activeRadarCenter.lon, f.lat, f.lon);
         const brg = calculateBearingDeg(activeRadarCenter.lat, activeRadarCenter.lon, f.lat, f.lon);
@@ -189,7 +280,9 @@ export default function StarkTacticalDeck({
           distanceKm: Math.round(dist * 10) / 10,
           bearingDeg: brg,
         };
-      })
+      });
+
+    return mapped
       .filter((f) => f && f.distanceKm <= RADAR_RANGE_KM)
       .sort((a, b) => a.distanceKm - b.distanceKm);
   }, [radarFlights, activeRadarCenter, RADAR_RANGE_KM]);
@@ -197,7 +290,7 @@ export default function StarkTacticalDeck({
   // 4. Airspace Radar Canvas Animation (50 km scope matching RadarCard)
   useEffect(() => {
     const canvas = radarCanvasRef.current;
-    if (!canvas || activeSlide !== 0) return;
+    if (!canvas || activeSlide !== 1) return;
 
     let isMounted = true;
 
@@ -681,52 +774,70 @@ export default function StarkTacticalDeck({
               <button
                 key={slide.id}
                 className={`deck-tab-pill ${isActive ? 'active' : ''}`}
-                onClick={() => goToSlide(slide.id)}
+                onClick={() => handleTabClick(slide.id)}
+                title={
+                  isActive
+                    ? isPaused
+                      ? 'Click to resume auto-loop'
+                      : 'Click to pause on this card'
+                    : `Switch to ${slide.title}`
+                }
               >
+                <span className="deck-tab-code">{slide.code}</span>
                 <Icon size={12} />
                 <span>{slide.title}</span>
-                <span className="deck-tab-tag">{slide.tag}</span>
+                {isActive && isPaused && (
+                  <span className="deck-tab-pause-badge">PAUSED</span>
+                )}
+                {slide.tag ? (
+                  <span
+                    className="deck-tab-tag"
+                    style={
+                      slide.key === 'traffic' && commuteData
+                        ? {
+                            color: '#ef4444',
+                            borderColor: 'rgba(239, 68, 68, 0.45)',
+                            background: 'rgba(239, 68, 68, 0.14)',
+                            fontWeight: 800,
+                          }
+                        : {}
+                    }
+                  >
+                    {slide.tag}
+                  </span>
+                ) : null}
               </button>
             );
           })}
-        </div>
-
-        {/* Deck Navigation Actions */}
-        <div className="deck-actions-group">
-          <button
-            className="deck-icon-btn"
-            onClick={() => setIsPaused(!isPaused)}
-            title={isPaused ? 'Resume auto-loop' : 'Pause auto-loop'}
-            aria-label="Toggle auto-loop"
-          >
-            {isPaused ? <Play size={12} /> : <Pause size={12} />}
-          </button>
 
           <button
-            className="deck-icon-btn"
-            onClick={handlePrevSlide}
-            title="Previous slide"
-            aria-label="Previous slide"
+            className={`deck-tab-pill deck-pause-toggle-btn ${isPaused ? 'paused' : ''}`}
+            onClick={() => setIsPaused((prev) => !prev)}
+            title={
+              isPaused
+                ? 'Auto-cycle paused. Click to resume auto-looping slides.'
+                : 'Auto-cycle active. Click to pause on current slide.'
+            }
           >
-            <ChevronLeft size={13} />
-          </button>
-
-          <button
-            className="deck-icon-btn"
-            onClick={handleNextSlide}
-            title="Next slide"
-            aria-label="Next slide"
-          >
-            <ChevronRight size={13} />
+            {isPaused ? <Play size={10} fill="currentColor" /> : <Pause size={10} fill="currentColor" />}
+            <span>{isPaused ? 'PAUSED' : 'AUTO'}</span>
           </button>
         </div>
       </div>
 
-      {/* Looping Countdown Progress Line */}
-      <div className="deck-progress-track">
+      {/* Looping Countdown Progress Line (Click to Pause/Resume) */}
+      <div
+        className="deck-progress-track"
+        onClick={() => setIsPaused((prev) => !prev)}
+        style={{ cursor: 'pointer' }}
+        title={isPaused ? 'Click to resume auto-loop' : 'Click to pause auto-loop'}
+      >
         <div
           className="deck-progress-bar"
-          style={{ width: `${progress}%` }}
+          style={{
+            width: isPaused ? '100%' : `${progress}%`,
+            background: isPaused ? 'var(--stark-gold, #fbbf24)' : undefined,
+          }}
         />
       </div>
 
@@ -742,8 +853,8 @@ export default function StarkTacticalDeck({
               className={`deck-slide-layer layer-${layerOffset} ${isFront ? 'is-front' : 'is-stacked'}`}
               onClick={!isFront ? () => goToSlide(slide.id) : undefined}
             >
-              {/* SLIDE 0: FULL-WIDTH AIRSPACE RADAR (50 KM RANGE, NO SELECTION OPTIONS) */}
-              {slide.id === 0 && (
+              {/* RADAR SLIDE: FULL-WIDTH AIRSPACE RADAR (50 KM RANGE) */}
+              {slide.key === 'radar' && (
                 <div className="fw-radar-content">
                   {/* Left: Scope Canvas (Expanded size) */}
                   <div className="fw-radar-canvas-box">
@@ -757,12 +868,16 @@ export default function StarkTacticalDeck({
                     </div>
                   </div>
 
-                  {/* Center: Live Clouds & Met Telemetry (Clean, No Options to Select) */}
+                  {/* Center: Live Clouds & Met Telemetry */}
                   <div className="fw-radar-center-col">
+                    <div className="card-section-super">
+                      <span className="tag-bracket">[</span>SYS-02 // AERONAUTICAL METAR<span className="tag-bracket">]</span>
+                    </div>
+
                     <div className="fw-status-top">
                       <div className="compact-airborne-pill">
                         <span className="pulse-dot" style={{ backgroundColor: '#00f0ff', width: 5, height: 5 }} />
-                        <span>{visibleFlights.length} AIRBORNE • 50KM SECTOR</span>
+                        <span>{visibleFlights.length} TRACKED AIRBORNE</span>
                       </div>
                       <div className="compact-status-tag">
                         <span>{cloudInfo?.radarCells?.length ? 'DOPPLER MET ACTIVE' : 'RADAR CLEAR'}</span>
@@ -790,13 +905,27 @@ export default function StarkTacticalDeck({
                       <span className="metar-dot">•</span>
                       <span className="metar-val">QNH {cloudInfo?.pressureHpa ?? 1014}hPa</span>
                     </div>
+
+                    <div className="fw-avionics-sub-bar">
+                      <span className="avionics-tag">XPDR: ADS-B 1090MHz</span>
+                      <span className="metar-dot">•</span>
+                      <span className="avionics-tag">MODE-S EN ROUTE</span>
+                      <span className="metar-dot">•</span>
+                      <span className="avionics-tag">RANGE: 50 KM</span>
+                    </div>
                   </div>
 
                   {/* Right: Active Intercepts List within 50 km */}
                   <div className="fw-radar-right-col">
-                    <div className="tape-header-row">
-                      <span className="tape-header">NEAREST CONTACTS (50KM)</span>
+                    <div className="card-section-super">
+                      <span className="tag-bracket">[</span>SYS-ADSB // SECTOR INTERCEPT MATRIX<span className="tag-bracket">]</span>
                     </div>
+
+                    <div className="tape-header-row">
+                      <span className="tape-header">AIRSPACE CONTACTS (50KM)</span>
+                      <span className="compact-news-counter">[{visibleFlights.length} TARGETS]</span>
+                    </div>
+
                     <div className="fw-contacts-list">
                       {visibleFlights.slice(0, 5).map((f) => (
                         <div
@@ -820,106 +949,176 @@ export default function StarkTacticalDeck({
                         </div>
                       ))}
                       {visibleFlights.length === 0 && (
-                        <div className="tape-empty">SCANNING 50KM SECTOR...</div>
+                        <div className="tactical-radar-scan-box">
+                          <div className="scan-line-anim" />
+                          <div className="scan-telemetry-row">
+                            <span className="scan-dot active" />
+                            <span>SWEEP: 360° CONTINUOUS SCAN</span>
+                          </div>
+                          <div className="scan-telemetry-row">
+                            <span className="scan-dot" />
+                            <span>AIRSPACE: 50 KM PERIMETER SECURE</span>
+                          </div>
+                          <div className="scan-telemetry-row">
+                            <span className="scan-dot" />
+                            <span>AERODROMES: VOBL • VOBG • VOJK</span>
+                          </div>
+                        </div>
                       )}
                     </div>
                   </div>
                 </div>
               )}
 
-              {/* SLIDE 1: FULL-WIDTH SURFACE TRAFFIC MAP (100% Full Width, 10 KM Scale) */}
-              {slide.id === 1 && (
+              {/* TRAFFIC SLIDE: FULL-WIDTH SURFACE TRAFFIC MAP (3km, 10km, 20km with Auto-Oscillation) */}
+              {slide.key === 'traffic' && (
                 <div className="fw-traffic-map-content">
-                  <div className="fw-traffic-map-container">
+                  {/* Clean Full-Width Single Map View */}
+                  <div className="fw-traffic-map-container single-mode">
                     <GoogleTrafficMap
                       center={activeTrafficCenter}
-                      rangeKm={10}
-                      height="410px"
+                      rangeKm={trafficScaleKm}
+                      height="350px"
                       interactive={true}
+                      topOffset={52}
+                      showScaleBar={true}
+                      showControls={true}
+                      showLegend={true}
+                      showBranding={false}
                     />
+                  </div>
 
-                    {/* Floating Stark HUD Telemetry Ribbon Over 100% Full Width Map */}
-                    <div className="fw-traffic-floating-hud">
-                      <div className="hud-left">
-                        <div className="hud-loc-chip">
-                          <MapPin size={11} color="var(--stark-cyan)" />
-                          <span className="loc-title">{activeTrafficCenter.shortName || 'LIVE TRAFFIC'}</span>
-                          <span className="scale-tag">10 KM SCALE</span>
-                        </div>
-                        <div
-                          className="hud-congestion-chip"
+                  {/* Floating Stark HUD Telemetry Ribbon Over Map */}
+                  <div className="fw-traffic-floating-hud">
+                    <div className="hud-left">
+                      <div className="hud-loc-chip">
+                        <MapPin size={12} color="var(--stark-cyan)" />
+                        <span className="loc-title">{activeTrafficCenter.shortName || 'HOME'}</span>
+                      </div>
+                      <div
+                        className="hud-congestion-chip"
+                        style={{
+                          color:
+                            (trafficData?.overallCongestion || 0) > 70
+                              ? 'var(--stark-crimson)'
+                              : (trafficData?.overallCongestion || 0) > 45
+                                ? 'var(--stark-gold)'
+                                : 'var(--stark-cyan)',
+                          borderColor:
+                            (trafficData?.overallCongestion || 0) > 70
+                              ? 'rgba(239, 68, 68, 0.4)'
+                              : 'rgba(0, 240, 255, 0.3)',
+                        }}
+                      >
+                        <span
+                          className="pulse-dot"
                           style={{
-                            color:
+                            backgroundColor:
                               (trafficData?.overallCongestion || 0) > 70
-                                ? 'var(--stark-crimson)'
+                                ? '#ef4444'
                                 : (trafficData?.overallCongestion || 0) > 45
-                                  ? 'var(--stark-gold)'
-                                  : 'var(--stark-cyan)',
-                            borderColor:
-                              (trafficData?.overallCongestion || 0) > 70
-                                ? 'rgba(239, 68, 68, 0.4)'
-                                : 'rgba(0, 240, 255, 0.3)',
+                                  ? '#fbbf24'
+                                  : '#00f0ff',
+                            width: 5,
+                            height: 5,
                           }}
-                        >
-                          <span
-                            className="pulse-dot"
-                            style={{
-                              backgroundColor:
-                                (trafficData?.overallCongestion || 0) > 70
-                                  ? '#ef4444'
-                                  : (trafficData?.overallCongestion || 0) > 45
-                                    ? '#fbbf24'
-                                    : '#00f0ff',
-                              width: 5,
-                              height: 5,
-                            }}
-                          />
-                          <span>{trafficData?.overallCongestion ?? 64}% CONGESTION</span>
-                        </div>
+                        />
+                        <span>{trafficData?.overallCongestion ?? 64}% CONGESTION</span>
+                      </div>
+                    </div>
 
-                        {commuteData && (
-                          <div
-                            className="hud-commute-chip"
-                            style={{
-                              color: commuteData.color,
-                              borderColor: `${commuteData.color}66`,
-                            }}
-                            title="Live Commute ETA"
-                          >
-                            <Briefcase size={10} />
-                            <span>COMMUTE: {commuteData.liveEtaMinutes}m (+{commuteData.delayMinutes}m)</span>
-                          </div>
-                        )}
+                    <div className="hud-center">
+                      <div className="hud-metric-item">
+                        <span className="metric-lbl">AVG SPEED</span>
+                        <span className="metric-val cyan">{trafficData?.avgSpeedKmH ?? 22} km/h</span>
                       </div>
 
-                      <div className="hud-center">
-                        <div className="hud-metric-item">
-                          <span className="metric-lbl">AVG SPEED</span>
-                          <span className="metric-val cyan">{trafficData?.avgSpeedKmH ?? 22} km/h</span>
+                      {/* Commute Telemetry with Inline Swap Button */}
+                      {commuteData ? (
+                        <div className="hud-commute-corridor-slot" style={{ borderColor: `${commuteData.color}55` }}>
+                          <Briefcase size={10} color={commuteData.color} />
+                          <span className="commute-slot-route">
+                            {commuteData.fromAlias || commuteData.originAlias || 'Home'} ➔ {commuteData.toAlias || commuteData.destinationLabel || 'Work'}
+                          </span>
+                          <span className="commute-slot-eta" style={{ color: commuteData.color }}>
+                            {commuteData.liveEtaMinutes}m
+                          </span>
+                          {commuteData.delayMinutes > 0 && (
+                            <span className="commute-slot-delay">+{commuteData.delayMinutes}m</span>
+                          )}
+                          <span className="commute-slot-dist">{commuteData.distanceKm}km</span>
+                          {onToggleCommuteDirection && (
+                            <button
+                              type="button"
+                              className="commute-swap-inline-btn"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                onToggleCommuteDirection();
+                              }}
+                              title="Swap Commute Direction"
+                            >
+                              <ArrowRightLeft size={10} />
+                            </button>
+                          )}
                         </div>
+                      ) : (
                         <div className="hud-metric-item">
                           <span className="metric-lbl">DELAY</span>
                           <span className="metric-val gold">+{trafficData?.totalDelayMinutes ?? 28}m</span>
                         </div>
-                        {(trafficData?.bottlenecks || []).slice(0, 2).map((b) => (
-                          <div key={b.id} className="hud-choke-pill">
-                            <span className="choke-dot" style={{ backgroundColor: b.color }} />
-                            <span className="choke-name">{b.name}</span>
-                            <span className="choke-del">+{b.delayMins}m</span>
-                          </div>
+                      )}
+                    </div>
+
+                    <div className="hud-right">
+                      {/* Scale Selector (2 KM, 10 KM, 20 KM) with Auto-Oscillation Toggle */}
+                      <div className="traffic-scale-pill-group">
+                        <button
+                          type="button"
+                          className={`traffic-scale-btn traffic-oscillate-btn ${isOscillating ? 'active' : ''}`}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setIsOscillating((prev) => {
+                              const next = !prev;
+                              try {
+                                localStorage.setItem('stark_traffic_oscillate', String(next));
+                              } catch {}
+                              return next;
+                            });
+                          }}
+                          title={isOscillating ? 'Pause auto-scale oscillation' : 'Play auto-scale oscillation (cycles between 2km, 10km, 20km)'}
+                        >
+                          {isOscillating ? <Pause size={10} /> : <Play size={10} />}
+                        </button>
+
+                        {[2, 10, 20].map((s) => (
+                          <button
+                            key={s}
+                            type="button"
+                            className={`traffic-scale-btn ${trafficScaleKm === s ? 'active' : ''}`}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setTrafficScaleKm(s);
+                              if (s === 2) oscillateDirRef.current = 1;
+                              if (s === 20) oscillateDirRef.current = -1;
+                              try {
+                                localStorage.setItem('stark_traffic_scale_km', String(s));
+                              } catch {}
+                            }}
+                            title={`Switch map to ${s} KM scale`}
+                          >
+                            <span>{s} KM</span>
+                          </button>
                         ))}
                       </div>
-
-                      <div className="hud-right" />
                     </div>
                   </div>
                 </div>
               )}
 
-              {/* SLIDE 2: FULL-WIDTH SATELLITE INTEL (NEWS - OSCILLATING) */}
-              {slide.id === 2 && (
+              {/* NEWS SLIDE: FULL-WIDTH SATELLITE INTEL (NEWS - OSCILLATING) */}
+              {slide.key === 'news' && (
                 <div className="fw-news-content">
-                  {/* Left: Featured Photo (Expanded height) */}
+                  {/* Left: Featured Photo or Satellite Orbital Telemetry */}
                   <div className="fw-news-media-box">
                     {currentNews.imageUrl && !newsImgError ? (
                       <img
@@ -929,8 +1128,31 @@ export default function StarkTacticalDeck({
                         onError={() => setNewsImgError(true)}
                       />
                     ) : (
-                      <div className="fw-news-fallback">
-                        <Newspaper size={40} color="rgba(0, 240, 255, 0.35)" />
+                      <div className="fw-news-fallback sat-hud-display">
+                        <svg className="sat-hud-svg" viewBox="0 0 160 160" width="130" height="130">
+                          <circle cx="80" cy="80" r="70" fill="none" stroke="rgba(0, 240, 255, 0.2)" strokeWidth="1" strokeDasharray="3 3" />
+                          <circle cx="80" cy="80" r="48" fill="none" stroke="rgba(0, 240, 255, 0.4)" strokeWidth="1" />
+                          <circle cx="80" cy="80" r="26" fill="rgba(0, 240, 255, 0.05)" stroke="rgba(0, 240, 255, 0.6)" strokeWidth="1.2" />
+                          <line x1="80" y1="6" x2="80" y2="154" stroke="rgba(0, 240, 255, 0.2)" strokeWidth="0.8" strokeDasharray="4 4" />
+                          <line x1="6" y1="80" x2="154" y2="80" stroke="rgba(0, 240, 255, 0.2)" strokeWidth="0.8" strokeDasharray="4 4" />
+                          <circle cx="128" cy="80" r="4" fill="#00f0ff">
+                            <animateTransform
+                              attributeName="transform"
+                              type="rotate"
+                              from="0 80 80"
+                              to="360 80 80"
+                              dur="12s"
+                              repeatCount="indefinite"
+                            />
+                          </circle>
+                          <circle cx="80" cy="80" r="6" fill="rgba(0, 240, 255, 0.3)" />
+                          <circle cx="80" cy="80" r="3" fill="#00f0ff" />
+                        </svg>
+                        <div className="sat-hud-readout">
+                          <span className="sat-hud-code">SIGINT // ORBITAL ARRAY</span>
+                          <span className="sat-hud-sub">DOWNLINK: 480 Mbps • ECC ON</span>
+                          <span className="sat-hud-sub">GEO: 12.97°N 77.74°E BLR</span>
+                        </div>
                       </div>
                     )}
                     <div className="fw-news-tag">
@@ -941,10 +1163,14 @@ export default function StarkTacticalDeck({
 
                   {/* Right: Headlines, Snippet, and Paginator */}
                   <div className="fw-news-body-box">
+                    <div className="card-section-super">
+                      <span className="tag-bracket">[</span>SYS-03 // SATELLITE INTELLIGENCE STREAM<span className="tag-bracket">]</span>
+                    </div>
+
                     <div className="fw-news-top-row">
                       <span className="fw-news-feed-pill oscillating-feed">
                         <span className="oscillating-wave" />
-                        <span>SATELLITE INTERCEPT // AUTO-OSCILLATING</span>
+                        <span>SATELLITE INTERCEPT // LIVE INTEL</span>
                       </span>
                       <span className="fw-news-time">{currentNews.timeAgo || 'Live'}</span>
                     </div>

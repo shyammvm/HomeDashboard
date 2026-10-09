@@ -1,13 +1,20 @@
-import React, { useMemo } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Calendar, MapPin, Video, CheckCircle2 } from 'lucide-react';
 import { formatEventTime, getRelativeTimeStr, isEventToday } from '../services/calendarService';
 
 export default function CalendarCard({ events = [], isLive = false }) {
-  const now = new Date();
+  const [currentTime, setCurrentTime] = useState(() => new Date());
+
+  // Periodically refresh time to keep countdowns and active status accurate
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setCurrentTime(new Date());
+    }, 30000);
+    return () => clearInterval(timer);
+  }, []);
 
   // Strictly filter only current (in-progress) and future events
   const currentAndFutureEvents = useMemo(() => {
-    const currentTime = new Date();
     return (events || [])
       .filter((ev) => {
         if (!ev.endDate) return false;
@@ -17,20 +24,31 @@ export default function CalendarCard({ events = [], isLive = false }) {
         return endD >= currentTime;
       })
       .sort((a, b) => new Date(a.startDate) - new Date(b.startDate));
-  }, [events]);
+  }, [events, currentTime]);
 
   // Find currently active event (in-progress right now)
   const currentActiveEvent = useMemo(() => {
-    const currentTime = new Date();
     return currentAndFutureEvents.find((e) => {
       const startD = new Date(e.startDate);
       const endD = new Date(e.endDate);
       return currentTime >= startD && currentTime <= endD;
     });
-  }, [currentAndFutureEvents]);
+  }, [currentAndFutureEvents, currentTime]);
 
   // Find the next upcoming event (or current active event for the banner)
   const bannerEvent = currentActiveEvent || currentAndFutureEvents[0];
+
+  // Exclude the banner event from the list below so it is only displayed once
+  const listEvents = useMemo(() => {
+    if (!bannerEvent) return currentAndFutureEvents;
+    return currentAndFutureEvents.filter((ev) => {
+      if (ev === bannerEvent) return false;
+      if (ev.id && bannerEvent.id && ev.id === bannerEvent.id) return false;
+      const evKey = `${ev.summary}-${new Date(ev.startDate).getTime()}`;
+      const bannerKey = `${bannerEvent.summary}-${new Date(bannerEvent.startDate).getTime()}`;
+      return evKey !== bannerKey;
+    });
+  }, [currentAndFutureEvents, bannerEvent]);
 
   return (
     <div className="dash-card calendar-card stark-hud-card" role="region" aria-label="Schedule">
@@ -42,9 +60,10 @@ export default function CalendarCard({ events = [], isLive = false }) {
       <div className="card-section-header">
         <div className="card-title-group">
           <div className="card-title-icon icon-calendar">
-            <Calendar size={18} />
+            <Calendar size={16} />
           </div>
           <div>
+            <div className="card-section-super">SEC-OPS // AGENDA</div>
             <h2 className="card-section-title">Schedule & Protocols</h2>
           </div>
         </div>
@@ -56,107 +75,74 @@ export default function CalendarCard({ events = [], isLive = false }) {
               marginRight: 4,
             }}
           />
-          {isLive ? 'GOOGLE SYNC' : 'ACTIVE FEED'}
+          {isLive ? 'CALENDAR SYNC' : 'LOCAL CACHE'}
         </span>
       </div>
 
       {/* Hero Banner: Happening Now or Next Up */}
       {bannerEvent && (
         <div
-          style={{
-            marginBottom: 14,
-            padding: '10px 14px',
-            background: currentActiveEvent
-              ? 'rgba(244, 63, 94, 0.08)'
-              : 'rgba(56, 189, 248, 0.08)',
-            border: currentActiveEvent
-              ? '1px solid rgba(244, 63, 94, 0.25)'
-              : '1px solid rgba(56, 189, 248, 0.2)',
-            borderRadius: '12px',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            gap: 10,
-          }}
+          className={`calendar-hero-alert ${currentActiveEvent ? 'is-active' : 'is-upcoming'}`}
         >
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
-            <span
-              className="pulse-dot"
-              style={{
-                backgroundColor: currentActiveEvent
-                  ? 'var(--accent-rose)'
-                  : 'var(--accent-cyan)',
-                flexShrink: 0,
-              }}
-            />
-            <span
-              style={{
-                fontSize: 11,
-                fontWeight: 700,
-                color: currentActiveEvent ? 'var(--accent-rose)' : 'var(--accent-cyan)',
-                textTransform: 'uppercase',
-                letterSpacing: '0.4px',
-                flexShrink: 0,
-              }}
-            >
-              {currentActiveEvent ? 'NOW:' : 'NEXT UP:'}
-            </span>
-            <span
-              style={{
-                fontSize: 13,
-                fontWeight: 600,
-                color: '#fff',
-                whiteSpace: 'nowrap',
-                overflow: 'hidden',
-                textOverflow: 'ellipsis',
-              }}
-            >
-              {bannerEvent.summary}
+          <div className="calendar-hero-top">
+            <div className="hero-status-tag">
+              <span
+                className="pulse-dot"
+                style={{
+                  backgroundColor: currentActiveEvent
+                    ? 'var(--accent-rose)'
+                    : 'var(--accent-cyan)',
+                  flexShrink: 0,
+                }}
+              />
+              <span className="status-label">
+                {currentActiveEvent ? 'PROTOCOL IN PROGRESS' : 'NEXT PROTOCOL'}
+              </span>
+            </div>
+            <span className="hero-time-badge">
+              {getRelativeTimeStr(new Date(bannerEvent.startDate), new Date(bannerEvent.endDate))}
             </span>
           </div>
 
-          <span
-            style={{
-              fontSize: 11,
-              fontWeight: 700,
-              background: currentActiveEvent ? 'var(--accent-rose)' : 'var(--accent-cyan)',
-              color: currentActiveEvent ? '#ffffff' : '#061a29',
-              padding: '2px 8px',
-              borderRadius: 6,
-              flexShrink: 0,
-            }}
-          >
-            {getRelativeTimeStr(new Date(bannerEvent.startDate), new Date(bannerEvent.endDate))}
-          </span>
+          <div className="calendar-hero-title" title={bannerEvent.summary}>
+            {bannerEvent.summary}
+          </div>
+
+          <div className="calendar-hero-meta">
+            <span className="meta-time">
+              {bannerEvent.allDay
+                ? 'All Day'
+                : `${formatEventTime(new Date(bannerEvent.startDate))} ➔ ${formatEventTime(new Date(bannerEvent.endDate))}`}
+            </span>
+            {bannerEvent.location && (
+              <span className="meta-loc">
+                {bannerEvent.location}
+              </span>
+            )}
+          </div>
         </div>
       )}
 
-      {/* Events List (strictly current and future) */}
+      {/* Events List (strictly current and future, excluding hero banner event) */}
       <div className="event-list custom-scroll">
-        {currentAndFutureEvents.length === 0 ? (
-          <div
-            style={{
-              textAlign: 'center',
-              padding: '30px 15px',
-              color: 'var(--text-dim)',
-              fontSize: 12.5,
-              background: 'rgba(255, 255, 255, 0.01)',
-              borderRadius: '8px',
-              border: '1px dashed var(--border-subtle)',
-            }}
-          >
-            <CheckCircle2
-              size={24}
-              style={{ margin: '0 auto 8px', display: 'block', opacity: 0.4, color: 'var(--accent-emerald)' }}
-            />
-            No current or upcoming events scheduled.
+        {listEvents.length === 0 ? (
+          <div className="tactical-empty-box">
+            <div className="tactical-empty-reticle">
+              <CheckCircle2 size={20} color="var(--stark-cyan)" />
+            </div>
+            <div className="tactical-empty-title">
+              {bannerEvent ? 'AGENDA NOMINAL // ALL PROTOCOLS DISPATCHED' : 'SCHEDULE CLEAR // ZERO ACTIVE CONFLICTS'}
+            </div>
+            <div className="tactical-empty-sub">
+              CALENDAR TELEMETRY SYNCED • STANDBY FOR NEW EVENTS
+            </div>
           </div>
         ) : (
-          currentAndFutureEvents.map((ev) => {
+          listEvents.map((ev) => {
             const startD = new Date(ev.startDate);
             const endD = new Date(ev.endDate);
             const isToday = isEventToday(startD);
-            const isOngoing = now >= startD && now <= endD;
+            const isOngoing = currentTime >= startD && currentTime <= endD;
             const relTime = getRelativeTimeStr(startD, endD);
 
             return (

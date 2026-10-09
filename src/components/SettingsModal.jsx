@@ -9,10 +9,10 @@ export default function SettingsModal({
   onSaveConfig,
   onOpenRemoteModal,
 }) {
-  const [city, setCity] = useState(config.city || 'Your Location');
-  const [homeAddress, setHomeAddress] = useState(config.homeAddress || config.city || 'Whitefield, Bangalore');
-  const [officeAddress, setOfficeAddress] = useState(config.officeAddress || 'RMZ Ecoworld, Bellandur, Bangalore');
-  const [officeName, setOfficeName] = useState(config.officeName || 'Work / EcoWorld');
+  const [city, setCity] = useState(config.city || 'Home');
+  const [homeAddress, setHomeAddress] = useState(config.homeAddress || config.city || '12.971211, 77.735895');
+  const [officeAddress, setOfficeAddress] = useState(config.officeAddress || '12.919583, 77.671528');
+  const [officeName, setOfficeName] = useState(config.officeName || 'Office');
   const [selectedOfficePreset, setSelectedOfficePreset] = useState(() => {
     const found = POPULAR_OFFICE_PRESETS.find(p => p.address === config.officeAddress || p.label === config.officeAddress);
     return found ? found.address : 'custom';

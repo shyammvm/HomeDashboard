@@ -1,6 +1,8 @@
 // Radar, Flight Intelligence & Weather Radar Service — Bangalore (BLR / VOBL)
 // Fetches live ADS-B flight vectors, aircraft type classification, Open-Meteo precipitation/clouds, and RainViewer Doppler radar
 
+import { DASHBOARD_CONFIG } from '../config.js';
+
 export const RADAR_CENTERS = {
   VOBL: {
     id: 'VOBL',
@@ -431,7 +433,190 @@ export function processFlightState(state, center) {
 const API_BASE = typeof window !== 'undefined' ? '' : 'http://localhost:5173';
 
 /**
- * Fetch strictly real live flights within the Bangalore FIR (100% real ADS-B transponder data)
+ * High-fidelity tactical flight generator for the Bangalore (VOBL / VOBG / VOJK) FIR sector.
+ * Simulates authentic commercial, cargo, and defense flights along real flight corridors,
+ * dynamically advancing their positions along their tracks based on current timestamp.
+ */
+export function generateRealisticBangaloreFlights(center = RADAR_CENTERS.VOBL, maxRadiusKm = 100) {
+  const now = Date.now() / 1000;
+
+  // Real Bangalore FIR routes & corridors
+  const templates = [
+    {
+      icao24: '8014ce',
+      callsign: 'IGO6653 ',
+      country: 'India',
+      // Inbound IndiGo A320neo from Mumbai on ILS runway 09L approach
+      startLat: 13.32, startLon: 77.48,
+      endLat: 13.20, endLon: 77.71,
+      speedKts: 172,
+      altFt: 3950,
+      vRateFpm: -650,
+      heading: 104,
+      cycleSec: 360,
+      squawk: '7243',
+    },
+    {
+      icao24: '8015d9',
+      callsign: 'AIC506  ',
+      country: 'India',
+      // Departing Air India A321neo climbing towards Delhi
+      startLat: 13.21, startLon: 77.73,
+      endLat: 13.48, endLon: 77.96,
+      speedKts: 310,
+      altFt: 14600,
+      vRateFpm: 1950,
+      heading: 38,
+      cycleSec: 420,
+      squawk: '1000',
+    },
+    {
+      icao24: '8015d3',
+      callsign: 'AKJ1372 ',
+      country: 'India',
+      // Akasa Air B737 MAX downwind base leg east of Whitefield/Hoskote
+      startLat: 12.86, startLon: 77.82,
+      endLat: 13.14, endLon: 77.84,
+      speedKts: 215,
+      altFt: 6200,
+      vRateFpm: -320,
+      heading: 358,
+      cycleSec: 400,
+      squawk: '7327',
+    },
+    {
+      icao24: '896172',
+      callsign: 'UAE564  ',
+      country: 'United Arab Emirates',
+      // Emirates B777-300ER widebody cruising high altitude west of city towards Singapore
+      startLat: 13.15, startLon: 77.32,
+      endLat: 12.86, endLon: 77.86,
+      speedKts: 460,
+      altFt: 34000,
+      vRateFpm: 0,
+      heading: 122,
+      cycleSec: 540,
+      squawk: '5120',
+    },
+    {
+      icao24: '801506',
+      callsign: 'IGO941  ',
+      country: 'India',
+      // IndiGo inbound from Hyderabad approaching VOBL from North
+      startLat: 13.42, startLon: 77.68,
+      endLat: 13.22, endLon: 77.70,
+      speedKts: 220,
+      altFt: 7600,
+      vRateFpm: -800,
+      heading: 184,
+      cycleSec: 380,
+      squawk: '2701',
+    },
+    {
+      icao24: '8002a4',
+      callsign: 'BPA102  ',
+      country: 'India',
+      // Blue Dart Boeing 757-200F cargo freighter
+      startLat: 13.11, startLon: 77.40,
+      endLat: 13.19, endLon: 77.68,
+      speedKts: 195,
+      altFt: 4600,
+      vRateFpm: -480,
+      heading: 82,
+      cycleSec: 440,
+      squawk: '4211',
+    },
+    {
+      icao24: '801458',
+      callsign: 'IAF042  ',
+      country: 'India',
+      // Indian Air Force Tejas fighter sortie (HAL VOBG / Yelahanka VOJK sector)
+      startLat: 13.04, startLon: 77.61,
+      endLat: 13.24, endLon: 77.76,
+      speedKts: 410,
+      altFt: 11200,
+      vRateFpm: 350,
+      heading: 36,
+      cycleSec: 320,
+      squawk: '7771',
+    },
+    {
+      icao24: '8017f8',
+      callsign: 'PAW08   ',
+      country: 'India',
+      // Pawan Hans helicopter VIP corridor
+      startLat: 12.85, startLon: 77.66,
+      endLat: 12.98, endLon: 77.68,
+      speedKts: 110,
+      altFt: 2200,
+      vRateFpm: 0,
+      heading: 8,
+      cycleSec: 480,
+      squawk: '2011',
+    },
+  ];
+
+  const states = templates.map((tpl, idx) => {
+    const t = (now + idx * 47) % tpl.cycleSec;
+    const progress = t / tpl.cycleSec;
+
+    const lat = tpl.startLat + (tpl.endLat - tpl.startLat) * progress;
+    const lon = tpl.startLon + (tpl.endLon - tpl.startLon) * progress;
+
+    const altM = Math.round(tpl.altFt * 0.3048);
+    const velMs = Math.round(tpl.speedKts * 0.514444);
+    const vRateMs = Math.round(tpl.vRateFpm * 0.00508 * 10) / 10;
+
+    return [
+      tpl.icao24,
+      tpl.callsign,
+      tpl.country,
+      Math.floor(now),
+      Math.floor(now),
+      lon,
+      lat,
+      altM,
+      false,
+      velMs,
+      tpl.heading,
+      vRateMs,
+      null,
+      altM,
+      tpl.squawk,
+      false,
+      0,
+    ];
+  });
+
+  return states
+    .map((s) => processFlightState(s, center))
+    .filter((f) => f && f.distanceKm <= maxRadiusKm)
+    .sort((a, b) => a.distanceKm - b.distanceKm);
+}
+
+/**
+ * Retrieve cached flights for instant cold-start rendering
+ */
+export function getCachedFlights(center = RADAR_CENTERS.VOBL, maxRadiusKm = 75) {
+  try {
+    if (typeof localStorage !== 'undefined') {
+      const saved = localStorage.getItem('aether_cached_flights');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          return parsed;
+        }
+      }
+    }
+  } catch { }
+  if (DASHBOARD_CONFIG?.simulateOfflineFlights) {
+    return generateRealisticBangaloreFlights(center, maxRadiusKm);
+  }
+  return [];
+}
+
+/**
+ * Fetch live flights within the Bangalore FIR (Strictly real live OpenSky ADS-B transponder data)
  */
 export async function fetchBangaloreFlights(center = RADAR_CENTERS.VOBL, maxRadiusKm = 150) {
   try {
@@ -440,35 +625,57 @@ export async function fetchBangaloreFlights(center = RADAR_CENTERS.VOBL, maxRadi
     const lomin = (center.lon - 1.3).toFixed(2);
     const lomax = (center.lon + 1.3).toFixed(2);
 
-    const res = await fetch(`${API_BASE}/api/radar/flights?lamin=${lamin}&lomin=${lomin}&lamax=${lamax}&lomax=${lomax}`, {
-      signal: AbortSignal.timeout(8000),
-    });
+    let states = [];
+    let liveSource = 'opensky-live';
 
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    try {
+      const res = await fetch(`${API_BASE}/api/radar/flights?lamin=${lamin}&lomin=${lomin}&lamax=${lamax}&lomax=${lomax}`, {
+        signal: AbortSignal.timeout(8000),
+      });
 
-    const data = await res.json();
-    const states = data.states || [];
-
-    if (states.length === 0) {
-      return {
-        flights: [],
-        source: data.source || 'opensky-live',
-        timestamp: Date.now(),
-      };
+      if (res.ok) {
+        const data = await res.json();
+        states = data.states || [];
+        liveSource = data.source || 'opensky-live';
+      }
+    } catch {
+      // Endpoint error (e.g. 404 on GitHub Pages or timeout)
     }
 
-    const processed = states
+    let processed = states
       .map((s) => processFlightState(s, center))
       .filter((f) => f && f.distanceKm <= maxRadiusKm)
       .sort((a, b) => a.distanceKm - b.distanceKm);
 
+    // Only synthesize if explicitly enabled in DASHBOARD_CONFIG (default is false: strictly 100% real ADS-B)
+    if (processed.length === 0 && DASHBOARD_CONFIG?.simulateOfflineFlights) {
+      const synth = generateRealisticBangaloreFlights(center, maxRadiusKm);
+      processed = synth.slice(0, 8);
+      liveSource = 'aether-tactical-fir';
+    }
+
+    // Save strictly real live flights to local storage for instant cold-start on TV
+    try {
+      if (typeof localStorage !== 'undefined' && processed.length > 0 && liveSource.includes('opensky')) {
+        localStorage.setItem('aether_cached_flights', JSON.stringify(processed));
+      }
+    } catch { }
+
     return {
       flights: processed,
-      source: data.source || 'opensky-live',
+      source: liveSource,
       timestamp: Date.now(),
     };
   } catch (err) {
-    console.warn('Live flight fetch error:', err.message);
+    console.warn('Flight radar load error:', err.message);
+    if (DASHBOARD_CONFIG?.simulateOfflineFlights) {
+      const fallbackFlights = generateRealisticBangaloreFlights(center, maxRadiusKm);
+      return {
+        flights: fallbackFlights,
+        source: 'aether-tactical-fir',
+        timestamp: Date.now(),
+      };
+    }
     return {
       flights: [],
       source: 'offline',
@@ -577,13 +784,22 @@ export async function fetchBangaloreCloudInfo(lat = 13.1986, lon = 77.7066) {
   }
 
   try {
-    const res = await fetch(`${API_BASE}/api/radar/clouds?lat=${actualLat}&lon=${actualLon}`, {
-      signal: AbortSignal.timeout(6000),
-    });
+    let data = null;
+    try {
+      const res = await fetch(`${API_BASE}/api/radar/clouds?lat=${actualLat}&lon=${actualLon}`, {
+        signal: AbortSignal.timeout(6000),
+      });
+      if (res.ok) data = await res.json();
+    } catch { }
 
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    if (!data || !data.current) {
+      const directUrl = `https://api.open-meteo.com/v1/forecast?latitude=${actualLat}&longitude=${actualLon}&current=cloud_cover,cloud_cover_low,cloud_cover_mid,cloud_cover_high,visibility,precipitation,rain,showers,weather_code,wind_speed_10m,wind_direction_10m,wind_gusts_10m,surface_pressure,relative_humidity_2m&hourly=precipitation_probability&forecast_days=1&timezone=auto`;
+      const directRes = await fetch(directUrl, { signal: AbortSignal.timeout(6000) });
+      if (directRes.ok) data = await directRes.json();
+    }
 
-    const data = await res.json();
+    if (!data) throw new Error('Cloud telemetry failed');
+
     const curr = data.current || {};
     const hourly = data.hourly || {};
 

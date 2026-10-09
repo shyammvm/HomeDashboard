@@ -131,9 +131,10 @@ export default function ExpenseTrackerCard({
       <div className="card-section-header">
         <div className="card-title-group">
           <div className="card-title-icon icon-expenses">
-            <Receipt size={18} />
+            <Receipt size={16} />
           </div>
           <div>
+            <div className="card-section-super">SEC-FIN // TREASURY</div>
             <h2 className="card-section-title">Treasury & Burn Rate</h2>
           </div>
         </div>
@@ -144,9 +145,9 @@ export default function ExpenseTrackerCard({
             title="Refresh expense entries"
             aria-label="Refresh expense entries"
           >
-            <RefreshCw size={13} />
+            <RefreshCw size={12} />
           </button>
-          <span className="card-badge" style={{ color: 'var(--accent-amber)' }}>
+          <span className="card-badge" style={{ color: isLive ? 'var(--accent-emerald)' : 'var(--accent-amber)' }}>
             <span
               className="pulse-dot"
               style={{
@@ -159,8 +160,11 @@ export default function ExpenseTrackerCard({
         </div>
       </div>
 
-      {/* Hero Section: Spent Today */}
-      <div className="expense-hero-card">
+      {/* Content Split: Left Hero Spend Stats + Right Live Transaction Tape */}
+      <div className="expense-content-split">
+        <div className="expense-hero-col">
+          {/* Hero Section: Spent Today */}
+          <div className="expense-hero-card">
         <div className="expense-hero-top">
           <div className="expense-hero-label">
             <span>SPENT TODAY</span>
@@ -198,16 +202,18 @@ export default function ExpenseTrackerCard({
           </div>
         </div>
       </div>
+    </div>
 
-      {/* View Switcher Tabs: Today's Tape vs All Recent */}
-      <div className="expense-tabs-bar">
+    <div className="expense-feed-col">
+          {/* View Switcher Tabs: Today's Tape vs All Recent */}
+          <div className="expense-tabs-bar">
         <button
           type="button"
           className={`expense-tab-btn ${activeTab === 'today' ? 'active' : ''}`}
           onClick={() => setActiveTab('today')}
         >
-          <span>Today&apos;s Tape</span>
-          <span className="expense-tab-badge">{todayExpenses.length}</span>
+          <span>Today's Tape</span>
+          <span className="expense-tab-badge">[{todayExpenses.length}]</span>
         </button>
         <button
           type="button"
@@ -215,7 +221,7 @@ export default function ExpenseTrackerCard({
           onClick={() => setActiveTab('recent')}
         >
           <span>Recent Feed</span>
-          <span className="expense-tab-badge">{expenses.length}</span>
+          <span className="expense-tab-badge">[{expenses.length}]</span>
         </button>
       </div>
 
@@ -291,6 +297,8 @@ export default function ExpenseTrackerCard({
           })
         )}
       </div>
+      </div>
     </div>
+  </div>
   );
 }

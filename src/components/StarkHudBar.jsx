@@ -2,60 +2,73 @@ import React, { useState, useEffect } from 'react';
 import {
   Wifi,
   WifiOff,
-  Settings,
   RefreshCw,
-  Smartphone,
+  Radio,
+  Cpu,
+  Compass,
 } from 'lucide-react';
 
 export default function StarkHudBar({
-  onOpenSettings,
-  onOpenRemote,
   onRefreshAll,
   userName = 'Shyam',
 }) {
   const [isOnline, setIsOnline] = useState(navigator.onLine);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [utcTime, setUtcTime] = useState('');
+  const [pingMs, setPingMs] = useState(18);
 
   useEffect(() => {
     const handleOnline = () => setIsOnline(true);
-    const handleOffline = () => setIsOffline(false);
+    const handleOffline = () => setIsOnline(false);
 
     window.addEventListener('online', handleOnline);
     window.addEventListener('offline', handleOffline);
 
+    // Update UTC time and simulate subtle network latency telemetry
+    const timer = setInterval(() => {
+      const now = new Date();
+      const uH = String(now.getUTCHours()).padStart(2, '0');
+      const uM = String(now.getUTCMinutes()).padStart(2, '0');
+      const uS = String(now.getUTCSeconds()).padStart(2, '0');
+      setUtcTime(`${uH}:${uM}:${uS}Z`);
+      // Realistic minor latency jitter between 14ms - 24ms
+      setPingMs(Math.floor(16 + Math.random() * 8));
+    }, 1000);
+
     return () => {
       window.removeEventListener('online', handleOnline);
       window.removeEventListener('offline', handleOffline);
+      clearInterval(timer);
     };
   }, []);
 
   const handleManualRefresh = () => {
     setIsRefreshing(true);
     if (onRefreshAll) onRefreshAll();
-    setTimeout(() => setIsRefreshing(false), 800);
+    setTimeout(() => setIsRefreshing(false), 900);
   };
 
   return (
-    <div className="stark-hud-bar" role="banner" aria-label="Stark Industries Tactical Telemetry Bar">
-      {/* Left: Glowing Arc Reactor Emblem & System ID */}
+    <header className="stark-hud-bar" role="banner" aria-label="Tactical Operations Telemetry Bar">
+      {/* Left: Glowing Arc Core & System ID */}
       <div className="stark-reactor-group">
-        {/* Animated Holographic Arc Reactor */}
-        <div className="arc-reactor-emblem" title="Stark Arc Reactor // Mk LXXXV Core Online">
+        {/* Animated Holographic Core */}
+        <div className="arc-reactor-emblem" title="Aether Tactical Core // Nominal">
           <svg viewBox="0 0 100 100" className="arc-reactor-svg">
             {/* Outer Ring */}
             <circle cx="50" cy="50" r="46" className="arc-ring-outer" />
             
             {/* Rotating Segmented Ring */}
             <g className="arc-ring-segments">
-              {[...Array(10)].map((_, i) => (
+              {[...Array(12)].map((_, i) => (
                 <line
                   key={i}
                   x1="50"
                   y1="8"
                   x2="50"
-                  y2="17"
+                  y2="16"
                   className="arc-coil"
-                  transform={`rotate(${i * 36} 50 50)`}
+                  transform={`rotate(${i * 30} 50 50)`}
                 />
               ))}
               <circle cx="50" cy="50" r="32" className="arc-ring-inner" />
@@ -73,9 +86,10 @@ export default function StarkHudBar({
         {/* System Title & Telemetry Status */}
         <div className="stark-telemetry-meta">
           <div className="stark-title-row">
-            <span className="stark-brand">STARK INDUSTRIES</span>
+            <span className="stark-brand">AETHER HUD</span>
             <span className="stark-divider">//</span>
-            <span className="stark-model">MARK LXXXV HUD</span>
+            <span className="stark-model">MK-LXXXV TACTICAL DECK</span>
+            <span className="stark-tag-code">[SYS-TEL: 01]</span>
           </div>
 
           <div className="stark-status-row">
@@ -86,14 +100,18 @@ export default function StarkHudBar({
             <span className="stark-meta-sep">•</span>
             <span className="stark-net-status">
               {isOnline ? (
-                <span className="online-tag"><Wifi size={10} /> SAT-LINK 100%</span>
+                <span className="online-tag">
+                  <Wifi size={11} /> SAT-LINK 100% <span className="ping-pill">{pingMs}ms</span>
+                </span>
               ) : (
-                <span className="offline-tag"><WifiOff size={10} /> LINK OFFLINE</span>
+                <span className="offline-tag">
+                  <WifiOff size={11} /> LINK OFFLINE
+                </span>
               )}
             </span>
             <span className="stark-meta-sep">•</span>
-            {/* Voice Waveform Telemetry simulation */}
-            <div className="jarvis-waveform" title="J.A.R.V.I.S. Voice Telemetry">
+            {/* Audio Waveform Telemetry */}
+            <div className="jarvis-waveform" title="Neural Link Active">
               <span className="bar bar-1" />
               <span className="bar bar-2" />
               <span className="bar bar-3" />
@@ -104,46 +122,35 @@ export default function StarkHudBar({
         </div>
       </div>
 
-      {/* Right: Holographic Tactical Controls */}
+      {/* Center: Live UTC / Zulu Telemetry & Geolocation Anchor */}
+      <div className="stark-center-telemetry">
+        <div className="telemetry-pill">
+          <Compass size={11} className="pill-icon" />
+          <span className="pill-label">BLR SECTOR</span>
+          <span className="pill-val">12.9712°N 77.7359°E</span>
+        </div>
+        <div className="telemetry-pill utc-pill">
+          <Radio size={11} className="pill-icon" />
+          <span className="pill-label">ZULU</span>
+          <span className="pill-val">{utcTime || '00:00:00Z'}</span>
+        </div>
+      </div>
+
+      {/* Right: Tactical Command Controls */}
       <div className="stark-hud-controls">
-        {/* Re-Calibrate / Refresh Button */}
         <button
-          className="stark-icon-btn"
+          className={`stark-sync-btn ${isRefreshing ? 'refreshing' : ''}`}
           onClick={handleManualRefresh}
-          title="Re-calibrate / Refresh Telemetry Feeds"
+          title="Re-calibrate / Refresh All Feeds"
           aria-label="Re-calibrate telemetry"
         >
           <RefreshCw
-            size={14}
-            style={{ animation: isRefreshing ? 'spin 0.7s linear infinite' : 'none' }}
+            size={13}
+            className={isRefreshing ? 'spin-anim' : ''}
           />
-          <span className="btn-label-mobile-hide">SYNC</span>
-        </button>
-
-        {/* Remote Settings Link for Phone & Laptop */}
-        {onOpenRemote && (
-          <button
-            className="stark-icon-btn remote-link-btn"
-            onClick={onOpenRemote}
-            title="Open Remote Settings on Phone or Laptop"
-            aria-label="Open phone remote settings"
-          >
-            <Smartphone size={14} />
-            <span className="btn-label-mobile-hide">REMOTE</span>
-          </button>
-        )}
-
-        {/* System Settings Override */}
-        <button
-          className="stark-icon-btn settings-btn"
-          onClick={onOpenSettings}
-          title="System Configuration Override"
-          aria-label="Open settings"
-        >
-          <Settings size={14} />
-          <span className="btn-label-mobile-hide">CONFIG</span>
+          <span className="sync-btn-text">RE-CALIBRATE</span>
         </button>
       </div>
-    </div>
+    </header>
   );
 }

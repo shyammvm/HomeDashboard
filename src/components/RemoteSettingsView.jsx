@@ -52,9 +52,9 @@ export default function RemoteSettingsView({
   // Form states
   const [userName, setUserName] = useState(config.userName || 'Shyam');
   const [currency, setCurrency] = useState(config.currency || '₹');
-  const [homeAddress, setHomeAddress] = useState(config.homeAddress || config.city || 'Whitefield, Bangalore');
-  const [officeAddress, setOfficeAddress] = useState(config.officeAddress || 'RMZ Ecoworld, Bellandur, Bangalore');
-  const [officeName, setOfficeName] = useState(config.officeName || 'Work / EcoWorld');
+  const [homeAddress, setHomeAddress] = useState(config.homeAddress || config.city || '12.971211, 77.735895');
+  const [officeAddress, setOfficeAddress] = useState(config.officeAddress || '12.919583, 77.671528');
+  const [officeName, setOfficeName] = useState(config.officeName || 'Office');
   const [selectedOfficePreset, setSelectedOfficePreset] = useState(() => {
     const found = POPULAR_OFFICE_PRESETS.find(p => p.address === config.officeAddress || p.label === config.officeAddress);
     return found ? found.address : 'custom';
@@ -150,8 +150,8 @@ export default function RemoteSettingsView({
       setConfig(initialConfig);
       setUserName(initialConfig.userName || 'Shyam');
       setCurrency(initialConfig.currency || '₹');
-      const home = initialConfig.homeAddress || initialConfig.city || 'Whitefield, Bangalore';
-      const office = initialConfig.officeAddress || 'RMZ Ecoworld, Bellandur, Bangalore';
+      const home = initialConfig.homeAddress || initialConfig.city || '12.971211, 77.735895';
+      const office = initialConfig.officeAddress || '12.919583, 77.671528';
       setHomeAddress(home);
       setOfficeAddress(office);
       const parsedH = parseCoordinateString(home);
@@ -164,7 +164,7 @@ export default function RemoteSettingsView({
         setOfficeLatInput(String(parsedO.lat));
         setOfficeLonInput(String(parsedO.lon));
       }
-      setOfficeName(initialConfig.officeName || 'Work / EcoWorld');
+      setOfficeName(initialConfig.officeName || 'Office');
       setLcdSleepMode(initialConfig.lcdSleepMode || false);
       setLcdSleepStart(initialConfig.lcdSleepStart || '23:30');
       setLcdSleepEnd(initialConfig.lcdSleepEnd || '06:30');
@@ -283,10 +283,10 @@ export default function RemoteSettingsView({
       ...config,
       userName: userName.trim() || 'Shyam',
       currency,
-      city: homeAddress.trim() || 'Whitefield, Bangalore',
-      homeAddress: homeAddress.trim() || 'Whitefield, Bangalore',
-      officeAddress: officeAddress.trim() || 'RMZ Ecoworld, Bellandur, Bangalore',
-      officeName: officeName.trim() || 'Work / Office',
+      city: config.city || (parseCoordinateString(homeAddress) ? 'Home' : homeAddress.trim()) || 'Home',
+      homeAddress: homeAddress.trim() || '12.971211, 77.735895',
+      officeAddress: officeAddress.trim() || '12.919583, 77.671528',
+      officeName: officeName.trim() || 'Office',
       lcdSleepMode: Boolean(lcdSleepMode),
       lcdSleepStart,
       lcdSleepEnd,

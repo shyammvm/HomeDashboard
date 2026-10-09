@@ -253,7 +253,7 @@ function apiProxyPlugin() {
           // Live Flight Radar proxy (OpenSky Network with in-memory caching)
           if (urlObj.pathname === '/api/radar/flights') {
             const now = Date.now();
-            if (global.__flightsCache && now - global.__flightsCache.timestamp < 10000) {
+            if (global.__flightsCache && now - global.__flightsCache.timestamp < 45000) {
               res.setHeader('Content-Type', 'application/json');
               return res.end(JSON.stringify({ ...global.__flightsCache.data, cached: true }));
             }
@@ -275,7 +275,9 @@ function apiProxyPlugin() {
 
               if (fetchRes.ok) {
                 const data = await fetchRes.json();
-                global.__flightsCache = { timestamp: now, data };
+                if (data && data.states && data.states.length > 0) {
+                  global.__flightsCache = { timestamp: now, data };
+                }
                 res.setHeader('Content-Type', 'application/json');
                 return res.end(JSON.stringify({ ...data, source: 'opensky-live', cached: false }));
               } else {
