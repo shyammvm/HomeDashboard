@@ -136,6 +136,43 @@ export function getUpcomingDays(count = 4) {
   return days;
 }
 
+export function getUvCategory(uvVal) {
+  const val = Number(uvVal) || 0;
+  if (val < 3) {
+    return {
+      level: 'LOW',
+      color: '#10b981',
+      description: 'Low danger (safe exposure)',
+    };
+  }
+  if (val < 6) {
+    return {
+      level: 'MODERATE',
+      color: '#fbbf24',
+      description: 'Moderate risk (protection recommended)',
+    };
+  }
+  if (val < 8) {
+    return {
+      level: 'HIGH',
+      color: '#f97316',
+      description: 'High risk (sun protection needed)',
+    };
+  }
+  if (val < 11) {
+    return {
+      level: 'VERY HIGH',
+      color: '#ef4444',
+      description: 'Very high risk (minimize direct exposure)',
+    };
+  }
+  return {
+    level: 'EXTREME',
+    color: '#a855f7',
+    description: 'Extreme danger (avoid midday sun)',
+  };
+}
+
 export function getCachedWeatherData() {
   try {
     if (typeof localStorage !== 'undefined') {
@@ -143,6 +180,17 @@ export function getCachedWeatherData() {
       if (saved) {
         const parsed = JSON.parse(saved);
         if (parsed && parsed.temp != null && Array.isArray(parsed.forecast) && parsed.forecast.length > 0 && parsed.aqi) {
+          if (!parsed.uvIndex) {
+            parsed.uvIndex = {
+              current: 0,
+              max: 8.3,
+              category: 'LOW',
+              color: '#10b981',
+              description: 'Low danger (safe exposure)',
+              maxCategory: 'VERY HIGH',
+              maxColor: '#ef4444',
+            };
+          }
           return parsed;
         }
       }
@@ -165,6 +213,15 @@ export function getCachedWeatherData() {
       { day: upcoming[2], max: 29, min: 20, icon: 'CloudRain', condition: 'Scattered Showers' },
       { day: upcoming[3], max: 31, min: 22, icon: 'Sun', condition: 'Mainly Clear' },
     ],
+    uvIndex: {
+      current: 0,
+      max: 8.3,
+      category: 'LOW',
+      color: '#10b981',
+      description: 'Low danger (safe exposure)',
+      maxCategory: 'VERY HIGH',
+      maxColor: '#ef4444',
+    },
     aqi: {
       aqi: 65,
       pm25: 14.2,
@@ -238,7 +295,7 @@ export async function fetchAirQualityData(lat = 12.9716, lon = 77.7473) {
 
 export async function fetchWeatherData(lat = 12.9716, lon = 77.7473, cityName = 'Your Location') {
   try {
-    const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,relative_humidity_2m,apparent_temperature,is_day,precipitation,weather_code,wind_speed_10m&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max&timezone=auto`;
+    const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,relative_humidity_2m,apparent_temperature,is_day,precipitation,weather_code,wind_speed_10m,uv_index&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max,uv_index_max&timezone=auto`;
     const [res, aqi] = await Promise.all([
       fetch(url, { signal: AbortSignal.timeout(7000) }),
       fetchAirQualityData(lat, lon),
@@ -280,6 +337,24 @@ export async function fetchWeatherData(lat = 12.9716, lon = 77.7473, cityName = 
       );
     }
 
+    // Process UV Index telemetry
+    const rawCurrentUv = curr.uv_index != null ? Math.round(curr.uv_index * 10) / 10 : 0;
+    const rawMaxUv = daily.uv_index_max && daily.uv_index_max[0] != null
+      ? Math.round(daily.uv_index_max[0] * 10) / 10
+      : rawCurrentUv;
+    const currentUvMeta = getUvCategory(rawCurrentUv);
+    const maxUvMeta = getUvCategory(rawMaxUv);
+
+    const uvIndex = {
+      current: rawCurrentUv,
+      max: rawMaxUv,
+      category: currentUvMeta.level,
+      color: currentUvMeta.color,
+      description: currentUvMeta.description,
+      maxCategory: maxUvMeta.level,
+      maxColor: maxUvMeta.color,
+    };
+
     const weatherResult = {
       city: cityName,
       temp: Math.round(curr.temperature_2m ?? 28),
@@ -290,6 +365,7 @@ export async function fetchWeatherData(lat = 12.9716, lon = 77.7473, cityName = 
       condition: weatherInfo.label,
       iconName: weatherInfo.icon,
       forecast,
+      uvIndex,
       aqi: aqi || {
         aqi: 65,
         pm25: 14.2,
@@ -317,6 +393,17 @@ export async function fetchWeatherData(lat = 12.9716, lon = 77.7473, cityName = 
         if (cached) {
           const parsed = JSON.parse(cached);
           if (parsed && parsed.temp != null && Array.isArray(parsed.forecast) && parsed.forecast.length > 0) {
+            if (!parsed.uvIndex) {
+              parsed.uvIndex = {
+                current: 0,
+                max: 8.3,
+                category: 'LOW',
+                color: '#10b981',
+                description: 'Low danger (safe exposure)',
+                maxCategory: 'VERY HIGH',
+                maxColor: '#ef4444',
+              };
+            }
             return {
               ...parsed,
               city: cityName || parsed.city || 'Home',
@@ -343,6 +430,15 @@ export async function fetchWeatherData(lat = 12.9716, lon = 77.7473, cityName = 
         { day: upcoming[2], max: 29, min: 20, icon: 'CloudRain', condition: 'Scattered Rain' },
         { day: upcoming[3], max: 30, min: 21, icon: 'Sun', condition: 'Sunny' },
       ],
+      uvIndex: {
+        current: 0,
+        max: 8.3,
+        category: 'LOW',
+        color: '#10b981',
+        description: 'Low danger (safe exposure)',
+        maxCategory: 'VERY HIGH',
+        maxColor: '#ef4444',
+      },
       aqi: {
         aqi: 65,
         pm25: 14.2,

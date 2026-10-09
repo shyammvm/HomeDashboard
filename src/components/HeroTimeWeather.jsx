@@ -14,6 +14,7 @@ import {
   Wind,
   Thermometer,
   Activity,
+  SunMedium,
 } from 'lucide-react';
 
 const ICON_MAP = {
@@ -149,34 +150,75 @@ export default function HeroTimeWeather({ weatherData, userName = 'Shyam' }) {
               </div>
             </div>
             <div className="weather-icon-hud-container" title={weatherData.condition}>
-              <DynamicWeatherIcon iconName={weatherData.iconName} size={42} color="var(--accent-cyan)" />
+              <DynamicWeatherIcon iconName={weatherData.iconName} size={32} color="var(--accent-cyan)" />
             </div>
           </div>
         </div>
 
         <div className="weather-lower-section">
           <div className="weather-stats-grid stark-stats-grid">
-            <div className="weather-stat-item stark-stat-box">
+            <div className="weather-stat-item stark-stat-box" title={`Thermal / Feels like ${weatherData.feelsLike}°C`}>
               <span className="weather-stat-label">
-                <Thermometer size={10} style={{ display: 'inline', marginRight: 3 }} />
-                THERMAL
+                <Thermometer size={9} />
+                FEELS
               </span>
               <span className="weather-stat-val">{weatherData.feelsLike}°C</span>
             </div>
-            <div className="weather-stat-item stark-stat-box">
+            <div className="weather-stat-item stark-stat-box" title={`Relative Humidity: ${weatherData.humidity}%`}>
               <span className="weather-stat-label">
-                <Droplets size={10} style={{ display: 'inline', marginRight: 3 }} />
+                <Droplets size={9} />
                 HUMIDITY
               </span>
               <span className="weather-stat-val">{weatherData.humidity}%</span>
             </div>
-            <div className="weather-stat-item stark-stat-box">
+            <div className="weather-stat-item stark-stat-box" title={`Wind Velocity: ${weatherData.windSpeed} km/h`}>
               <span className="weather-stat-label">
-                <Wind size={10} style={{ display: 'inline', marginRight: 3 }} />
-                DOPPLER WIND
+                <Wind size={9} />
+                WIND
               </span>
-              <span className="weather-stat-val">{weatherData.windSpeed} km/h</span>
+              <span className="weather-stat-val">{weatherData.windSpeed} <span className="stat-unit">km/h</span></span>
             </div>
+
+            {/* UV Index Stat Box */}
+            {(() => {
+              const uvObj = weatherData.uvIndex || {
+                current: 0,
+                max: 8.3,
+                category: 'LOW',
+                color: '#10b981',
+                description: 'Low danger (safe exposure)',
+              };
+              const currentVal = typeof uvObj === 'object' ? (uvObj.current ?? 0) : Number(uvObj) || 0;
+              const maxVal = typeof uvObj === 'object' ? uvObj.max : null;
+              const category = uvObj.category || (currentVal < 3 ? 'LOW' : currentVal < 6 ? 'MOD' : currentVal < 8 ? 'HIGH' : 'V.HIGH');
+              const shortCat = category === 'VERY HIGH' ? 'V.HIGH' : category === 'MODERATE' ? 'MOD' : category;
+              const color = uvObj.color || (currentVal < 3 ? '#10b981' : currentVal < 6 ? '#fbbf24' : currentVal < 8 ? '#f97316' : '#ef4444');
+              const desc = uvObj.description || `UV Index: ${currentVal} (${category})`;
+
+              return (
+                <div
+                  className="weather-stat-item stark-stat-box uv-stat-box"
+                  style={{
+                    borderColor: `${color}44`,
+                    background: `linear-gradient(135deg, rgba(10,20,30,0.6), ${color}12)`,
+                  }}
+                  title={`${desc}${maxVal != null ? ` • Peak today: ${maxVal}` : ''}`}
+                >
+                  <span className="weather-stat-label" style={{ color: color }}>
+                    <SunMedium size={9} />
+                    UV ({shortCat})
+                  </span>
+                  <span className="weather-stat-val" style={{ color: color }}>
+                    {currentVal}
+                    {maxVal != null && maxVal > 0 && (
+                      <span className="stat-micro-sub" title={`Peak: ${maxVal}`}>
+                        /{maxVal}
+                      </span>
+                    )}
+                  </span>
+                </div>
+              );
+            })()}
 
             {/* AQI Stat Box */}
             {(() => {
@@ -187,6 +229,9 @@ export default function HeroTimeWeather({ weatherData, userName = 'Shyam' }) {
                 color: '#fbbf24',
                 description: 'Moderate air quality',
               };
+              const rawCat = aqiObj.category || 'MOD';
+              const shortCat = rawCat === 'MODERATE' ? 'MOD' : rawCat === 'UNHEALTHY' ? 'UNHL' : rawCat === 'HAZARDOUS' ? 'HAZ' : rawCat;
+
               return (
                 <div
                   className="weather-stat-item stark-stat-box"
@@ -194,17 +239,17 @@ export default function HeroTimeWeather({ weatherData, userName = 'Shyam' }) {
                     borderColor: `${aqiObj.color}44`,
                     background: `linear-gradient(135deg, rgba(10,20,30,0.6), ${aqiObj.color}12)`,
                   }}
-                  title={aqiObj.description}
+                  title={`${aqiObj.description} • PM2.5: ${aqiObj.pm25 ?? 'N/A'}`}
                 >
                   <span className="weather-stat-label" style={{ color: aqiObj.color }}>
-                    <Activity size={10} style={{ display: 'inline', marginRight: 3 }} />
-                    AQI ({aqiObj.category})
+                    <Activity size={9} />
+                    AQI ({shortCat})
                   </span>
-                  <span className="weather-stat-val" style={{ color: aqiObj.color, display: 'flex', alignItems: 'baseline', justifyContent: 'space-between' }}>
-                    <span>{aqiObj.aqi}</span>
+                  <span className="weather-stat-val" style={{ color: aqiObj.color }}>
+                    {aqiObj.aqi}
                     {aqiObj.pm25 != null && (
-                      <span style={{ fontSize: 9, opacity: 0.85, fontWeight: 500, fontFamily: 'var(--font-mono)' }}>
-                        PM2.5 {aqiObj.pm25}
+                      <span className="stat-micro-sub" title={`PM2.5: ${aqiObj.pm25}`}>
+                        •{aqiObj.pm25}
                       </span>
                     )}
                   </span>
@@ -228,7 +273,7 @@ export default function HeroTimeWeather({ weatherData, userName = 'Shyam' }) {
                 {forecastList.slice(0, 4).map((day, idx) => (
                   <div key={idx} className="forecast-day-col stark-forecast-col">
                     <span className="forecast-day-name">{day.day}</span>
-                    <DynamicWeatherIcon iconName={day.icon} size={16} color="var(--accent-cyan)" />
+                    <DynamicWeatherIcon iconName={day.icon} size={13} color="var(--accent-cyan)" />
                     <span className="forecast-day-temp">{day.max}°</span>
                   </div>
                 ))}

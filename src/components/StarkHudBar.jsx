@@ -6,6 +6,8 @@ import {
   Radio,
   Cpu,
   Compass,
+  Clock,
+  Globe,
 } from 'lucide-react';
 
 export default function StarkHudBar({
@@ -14,8 +16,26 @@ export default function StarkHudBar({
 }) {
   const [isOnline, setIsOnline] = useState(navigator.onLine);
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const [utcTime, setUtcTime] = useState('');
+  const [ukTime, setUkTime] = useState('');
+  const [usTime, setUsTime] = useState('');
+  const [usZone, setUsZone] = useState(() => {
+    try {
+      return localStorage.getItem('aether_us_timezone') || 'ET';
+    } catch {
+      return 'ET';
+    }
+  });
   const [pingMs, setPingMs] = useState(18);
+
+  const handleToggleUsZone = () => {
+    setUsZone((prev) => {
+      const next = prev === 'ET' ? 'PT' : 'ET';
+      try {
+        localStorage.setItem('aether_us_timezone', next);
+      } catch {}
+      return next;
+    });
+  };
 
   useEffect(() => {
     const handleOnline = () => setIsOnline(true);
@@ -24,23 +44,52 @@ export default function StarkHudBar({
     window.addEventListener('online', handleOnline);
     window.addEventListener('offline', handleOffline);
 
-    // Update UTC time and simulate subtle network latency telemetry
-    const timer = setInterval(() => {
+    // Update UK & US World Times and simulate subtle network latency telemetry
+    const updateTimes = () => {
       const now = new Date();
-      const uH = String(now.getUTCHours()).padStart(2, '0');
-      const uM = String(now.getUTCMinutes()).padStart(2, '0');
-      const uS = String(now.getUTCSeconds()).padStart(2, '0');
-      setUtcTime(`${uH}:${uM}:${uS}Z`);
+
+      // UK Time (London - GMT / BST)
+      try {
+        const ukFormatted = now.toLocaleTimeString('en-GB', {
+          timeZone: 'Europe/London',
+          hour12: false,
+          hour: '2-digit',
+          minute: '2-digit',
+          second: '2-digit',
+        });
+        setUkTime(ukFormatted);
+      } catch {
+        setUkTime('--:--:--');
+      }
+
+      // US Time (Eastern ET or Pacific PT)
+      try {
+        const targetUsTz = usZone === 'PT' ? 'America/Los_Angeles' : 'America/New_York';
+        const usFormatted = now.toLocaleTimeString('en-GB', {
+          timeZone: targetUsTz,
+          hour12: false,
+          hour: '2-digit',
+          minute: '2-digit',
+          second: '2-digit',
+        });
+        setUsTime(usFormatted);
+      } catch {
+        setUsTime('--:--:--');
+      }
+
       // Realistic minor latency jitter between 14ms - 24ms
       setPingMs(Math.floor(16 + Math.random() * 8));
-    }, 1000);
+    };
+
+    updateTimes();
+    const timer = setInterval(updateTimes, 1000);
 
     return () => {
       window.removeEventListener('online', handleOnline);
       window.removeEventListener('offline', handleOffline);
       clearInterval(timer);
     };
-  }, []);
+  }, [usZone]);
 
   const handleManualRefresh = () => {
     setIsRefreshing(true);
@@ -122,17 +171,35 @@ export default function StarkHudBar({
         </div>
       </div>
 
-      {/* Center: Live UTC / Zulu Telemetry & Geolocation Anchor */}
+      {/* Center: Live Geolocation Anchor & UK / US World Time Telemetry */}
       <div className="stark-center-telemetry">
-        <div className="telemetry-pill">
+        <div className="telemetry-pill blr-pill" title="Bangalore Sector: 12.9712°N 77.7359°E">
           <Compass size={11} className="pill-icon" />
-          <span className="pill-label">BLR SECTOR</span>
-          <span className="pill-val">12.9712°N 77.7359°E</span>
+          <span className="pill-label">BLR</span>
+          <span className="pill-val">12.97°N 77.74°E</span>
         </div>
-        <div className="telemetry-pill utc-pill">
-          <Radio size={11} className="pill-icon" />
-          <span className="pill-label">ZULU</span>
-          <span className="pill-val">{utcTime || '00:00:00Z'}</span>
+        <div className="telemetry-pill world-clock-stacked-pill" title="World Telemetry: UK (London) & US">
+          <Globe size={13} className="pill-icon world-icon" />
+          <div className="clock-stack-column">
+            <div className="clock-stack-row uk-row" title="United Kingdom / London Time (Europe/London)">
+              <span className="pill-mini-tag uk-tag">UK</span>
+              <span className="pill-mini-val">{ukTime || '--:--:--'}</span>
+            </div>
+            <div
+              className="clock-stack-row us-row"
+              onClick={handleToggleUsZone}
+              title={`US ${usZone === 'ET' ? 'Eastern (New York)' : 'Pacific (California)'} Time — Click to toggle ET / PT`}
+              role="button"
+              tabIndex={0}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') handleToggleUsZone();
+              }}
+            >
+              <span className="pill-mini-tag us-tag">US {usZone}</span>
+              <span className="pill-mini-val">{usTime || '--:--:--'}</span>
+              <span className="pill-zone-hint">⇄</span>
+            </div>
+          </div>
         </div>
       </div>
 
