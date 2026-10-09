@@ -181,8 +181,8 @@ export default function NewsTickerCard({ newsArticles = [], cycleSeconds = 35 })
             <h3 className="news-headline-large">{current.title}</h3>
           </a>
 
-          {current.snippet && (
-            <p className="news-snippet-large">{current.snippet}</p>
+          {(current.paragraph || current.snippet) && (
+            <p className="news-snippet-large">{current.paragraph || current.snippet}</p>
           )}
         </div>
       </div>

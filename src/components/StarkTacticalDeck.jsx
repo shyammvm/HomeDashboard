@@ -836,7 +836,8 @@ export default function StarkTacticalDeck({
     timeAgo: 'Live',
     imageUrl: null,
     link: '#',
-    snippet: 'Monitoring worldwide telemetry arrays for updates.',
+    snippet: 'Monitoring worldwide telemetry arrays and international bureaus for breaking world dispatches. Stand by while incoming satellite intelligence feeds are calibrated.',
+    paragraph: 'Monitoring worldwide telemetry arrays and international bureaus for breaking world dispatches. Stand by while incoming satellite intelligence feeds are calibrated.',
   };
 
   const handlePrevNews = (e) => {
@@ -1359,9 +1360,9 @@ export default function StarkTacticalDeck({
                       <ExternalLink size={12} style={{ display: 'inline', marginLeft: 6, verticalAlign: 'middle' }} />
                     </a>
 
-                    {currentNews.snippet && (
+                    {(currentNews.paragraph || currentNews.snippet) && (
                       <p className="fw-news-snippet">
-                        {currentNews.snippet}
+                        {currentNews.paragraph || currentNews.snippet}
                       </p>
                     )}
 

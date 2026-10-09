@@ -62,6 +62,75 @@ function extractRssImageUrl(item) {
   return url || null;
 }
 
+const articleParagraphCache = new Map();
+
+async function extractArticleParagraph(url) {
+  if (!url || typeof url !== 'string' || !url.startsWith('http')) return null;
+  if (articleParagraphCache.has(url)) return articleParagraphCache.get(url);
+
+  try {
+    const res = await fetch(url, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+      },
+      signal: AbortSignal.timeout(3500),
+    });
+    if (!res.ok) return null;
+    const html = await res.text();
+    const articleHtml = html.match(/<article[^>]*>([\s\S]*?)<\/article>/i)?.[1] || html;
+    const pMatches = [...articleHtml.matchAll(/<p[^>]*>([\s\S]*?)<\/p>/gi)];
+    const cleanParas = pMatches
+      .map(m =>
+        m[1]
+          .replace(/<[^>]*>/g, '')
+          .replace(/&quot;/g, '"')
+          .replace(/&amp;/g, '&')
+          .replace(/&#x27;/g, "'")
+          .replace(/&apos;/g, "'")
+          .replace(/&nbsp;/g, ' ')
+          .replace(/\s+/g, ' ')
+          .trim()
+      )
+      .filter(p =>
+        p.length >= 45 &&
+        !p.startsWith('Image caption') &&
+        !p.startsWith('Image source') &&
+        !p.startsWith('Media caption') &&
+        !p.startsWith('Listen:') &&
+        !p.startsWith('Watch:') &&
+        !p.startsWith('Follow:') &&
+        !p.startsWith('Skip to') &&
+        !p.includes('video you need') &&
+        !p.includes('video can not be played') &&
+        !p.includes('cookie') &&
+        !p.includes('privacy policy') &&
+        !p.includes('terms of use') &&
+        !p.includes('BBC is not responsible') &&
+        !p.includes('Subscribe to')
+      );
+
+    let paragraph = null;
+    if (cleanParas.length >= 2) {
+      paragraph = `${cleanParas[0]} ${cleanParas[1]}`.trim();
+    } else if (cleanParas.length === 1) {
+      paragraph = cleanParas[0];
+    }
+
+    if (paragraph) {
+      if (articleParagraphCache.size > 200) {
+        const firstKey = articleParagraphCache.keys().next().value;
+        articleParagraphCache.delete(firstKey);
+      }
+      articleParagraphCache.set(url, paragraph);
+      return paragraph;
+    }
+  } catch {
+    // Ignore fetch timeout/errors and fall back
+  }
+  return null;
+}
+
 // Centralized settings persistence
 const SETTINGS_FILE = path.join(__dirname, 'dashboard-settings.json');
 
@@ -193,16 +262,35 @@ app.get('/api/rss', async (req, res) => {
   const feedUrl = req.query.url || 'https://feeds.bbci.co.uk/news/world/rss.xml';
   try {
     const feed = await rssParser.parseURL(feedUrl);
+    const rawItems = (feed.items || []).slice(0, 15);
+
+    // Enrich each item with a clean detailed paragraph
+    const items = await Promise.all(
+      rawItems.map(async (item) => {
+        let paragraph = await extractArticleParagraph(item.link);
+        if (!paragraph) {
+          const snippet = (item.contentSnippet || item.content || '').replace(/<[^>]*>/g, '').trim();
+          if (snippet && !snippet.toLowerCase().includes(item.title.toLowerCase().slice(0, 30)) && snippet.length < 160) {
+            paragraph = `${item.title}. ${snippet}`.trim();
+          } else {
+            paragraph = snippet || item.title;
+          }
+        }
+        return {
+          title: item.title,
+          link: item.link,
+          pubDate: item.pubDate,
+          contentSnippet: paragraph,
+          paragraph,
+          creator: item.creator || item.author || '',
+          imageUrl: extractRssImageUrl(item),
+        };
+      })
+    );
+
     return res.json({
       title: feed.title || 'World News',
-      items: (feed.items || []).slice(0, 15).map(item => ({
-        title: item.title,
-        link: item.link,
-        pubDate: item.pubDate,
-        contentSnippet: item.contentSnippet || item.content || '',
-        creator: item.creator || item.author || '',
-        imageUrl: extractRssImageUrl(item),
-      })),
+      items,
     });
   } catch (err) {
     console.error('Error parsing RSS feed:', err.message);
