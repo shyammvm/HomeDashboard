@@ -32,7 +32,7 @@ export default function StarkHudBar({
       const next = prev === 'ET' ? 'PT' : 'ET';
       try {
         localStorage.setItem('aether_us_timezone', next);
-      } catch {}
+      } catch { }
       return next;
     });
   };
@@ -106,7 +106,7 @@ export default function StarkHudBar({
           <svg viewBox="0 0 100 100" className="arc-reactor-svg">
             {/* Outer Ring */}
             <circle cx="50" cy="50" r="46" className="arc-ring-outer" />
-            
+
             {/* Rotating Segmented Ring */}
             <g className="arc-ring-segments">
               {[...Array(12)].map((_, i) => (
@@ -135,16 +135,13 @@ export default function StarkHudBar({
         {/* System Title & Telemetry Status */}
         <div className="stark-telemetry-meta">
           <div className="stark-title-row">
-            <span className="stark-brand">AETHER HUD</span>
-            <span className="stark-divider">//</span>
-            <span className="stark-model">MK-LXXXV TACTICAL DECK</span>
-            <span className="stark-tag-code">[SYS-TEL: 01]</span>
+            <span className="stark-tag-code">[CONFIDENTIAL]</span>
           </div>
 
           <div className="stark-status-row">
             <span className="stark-pulse-dot" />
             <span className="stark-status-text">
-              J.A.R.V.I.S. PROTOCOL: ONLINE
+              J.A.R.V.I.S : ONLINE
             </span>
             <span className="stark-meta-sep">•</span>
             <span className="stark-net-status">

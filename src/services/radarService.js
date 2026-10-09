@@ -69,6 +69,7 @@ export const AIRLINE_REGISTRY = {
   // Helicopter & Rotary
   PAW: { name: 'Pawan Hans', iata: 'PH', color: '#eab308', bg: 'rgba(234, 179, 8, 0.16)', type: 'HELICOPTER', model: 'HAL Dhruv / Bell 412' },
   HLG: { name: 'Heligo Charters', iata: 'HG', color: '#eab308', bg: 'rgba(234, 179, 8, 0.16)', type: 'HELICOPTER', model: 'Airbus H145 Rotary' },
+  CSG: { name: 'Global Vectra', iata: 'GV', color: '#eab308', bg: 'rgba(234, 179, 8, 0.16)', type: 'HELICOPTER', model: 'Bell 412 / AW139' },
 };
 
 /**
@@ -120,15 +121,40 @@ export function getCompassDirection(deg) {
 /**
  * Classify aircraft type and operational role based on callsign, flight dynamics, and registry
  */
-export function classifyAircraft({ callsign, country, altFt, speedKts, vRateFpm, distanceKm, modelCode = '', record = {} }) {
+export function classifyAircraft({ callsign, country, altFt, speedKts, vRateFpm, distanceKm, modelCode = '', record = {}, airline = null }) {
   const cs = (callsign || '').trim().toUpperCase();
+  const cleanCs = cs.replace(/[\s-]/g, '');
   const mc = (modelCode || record?.t || '').trim().toUpperCase();
-  const prefix3 = cs.slice(0, 3);
-  const prefix2 = cs.slice(0, 2);
+  const prefix3 = cleanCs.slice(0, 3);
+  const prefix2 = cleanCs.slice(0, 2);
   const isMilitaryDb = Boolean(record?.dbFlags && (record.dbFlags & 1));
 
-  // Check known registry entry
-  const regEntry = AIRLINE_REGISTRY[prefix3] || AIRLINE_REGISTRY[prefix2];
+  // Check known registry entry (supports ICAO 3-letter, IATA 2-letter, and Indian tail registrations)
+  let regEntry = AIRLINE_REGISTRY[prefix3];
+  if (!regEntry) {
+    for (const key of Object.keys(AIRLINE_REGISTRY)) {
+      if (AIRLINE_REGISTRY[key].iata === prefix2) {
+        regEntry = AIRLINE_REGISTRY[key];
+        break;
+      }
+    }
+  }
+
+  // Resolve Indian tail registrations (VT-...)
+  if (!regEntry && (cleanCs.startsWith('VT') || cs.startsWith('VT-'))) {
+    const regSuffix = cleanCs.replace(/^VT/, '');
+    if (regSuffix.startsWith('YA')) {
+      regEntry = AIRLINE_REGISTRY.AKJ; // Akasa Air
+    } else if (regSuffix.startsWith('TN')) {
+      regEntry = AIRLINE_REGISTRY.VTI || AIRLINE_REGISTRY.AIC; // Vistara / Air India
+    } else if (regSuffix.startsWith('I')) {
+      regEntry = AIRLINE_REGISTRY.IGO; // IndiGo
+    } else if (regSuffix.startsWith('EX') || regSuffix.startsWith('ED') || regSuffix.startsWith('CI') || regSuffix.startsWith('AN')) {
+      regEntry = AIRLINE_REGISTRY.AIC; // Air India
+    } else if (regSuffix.startsWith('SG') || regSuffix.startsWith('SL') || regSuffix.startsWith('SQ')) {
+      regEntry = AIRLINE_REGISTRY.SEJ; // SpiceJet
+    }
+  }
 
   // Map known ICAO model codes
   let explicitModel = null;
@@ -136,17 +162,99 @@ export function classifyAircraft({ callsign, country, altFt, speedKts, vRateFpm,
   else if (mc === 'A21N') explicitModel = 'Airbus A321neo';
   else if (mc === 'A320') explicitModel = 'Airbus A320-200';
   else if (mc === 'A321') explicitModel = 'Airbus A321-200';
+  else if (mc === 'A319') explicitModel = 'Airbus A319';
+  else if (mc === 'A359') explicitModel = 'Airbus A350-900';
+  else if (mc === 'A35K' || mc === 'A350') explicitModel = 'Airbus A350';
+  else if (mc === 'A332' || mc === 'A333' || mc === 'A339' || mc === 'A330') explicitModel = 'Airbus A330';
+  else if (mc === 'A388' || mc === 'A380') explicitModel = 'Airbus A380-800';
   else if (mc === 'B38M') explicitModel = 'Boeing 737 MAX 8';
+  else if (mc === 'B39M') explicitModel = 'Boeing 737 MAX 9';
   else if (mc === 'B738') explicitModel = 'Boeing 737-800';
+  else if (mc === 'B737' || mc === 'B739') explicitModel = 'Boeing 737';
   else if (mc === 'B748') explicitModel = 'Boeing 747-8 Freighter';
-  else if (mc === 'B77W') explicitModel = 'Boeing 777-300ER';
+  else if (mc === 'B744') explicitModel = 'Boeing 747-400';
+  else if (mc === 'B77W' || mc === 'B772' || mc === 'B777') explicitModel = 'Boeing 777-300ER';
+  else if (mc === 'B788' || mc === 'B789' || mc === 'B78X') explicitModel = 'Boeing 787 Dreamliner';
   else if (mc === 'AT76' || mc === 'AT72') explicitModel = 'ATR 72-600';
-  else if (mc === 'D228') explicitModel = 'Dornier Do 228';
+  else if (mc === 'AT45' || mc === 'AT42') explicitModel = 'ATR 42-600';
+  else if (mc === 'D228' || mc === 'DO228') explicitModel = 'Dornier Do 228';
+  else if (mc === 'DH8D' || mc === 'Q400') explicitModel = 'De Havilland Dash 8 Q400';
+  else if (mc === 'E175' || mc === 'E190' || mc === 'E195') explicitModel = 'Embraer E-Jet';
   else if (mc === 'PRM1') explicitModel = 'Beechcraft Premier I';
   else if (mc === 'E35L') explicitModel = 'Embraer Legacy 500';
   else if (mc === 'C56X') explicitModel = 'Cessna Citation XLS';
   else if (mc === 'GL5T' || mc === 'GLEX') explicitModel = 'Bombardier Global 5000';
   else if (mc === 'ALH') explicitModel = 'HAL Dhruv ALH';
+  else if (mc === 'LCH') explicitModel = 'HAL Prachand LCH';
+  else if (mc === 'B06') explicitModel = 'Bell 206 JetRanger';
+  else if (mc === 'B412') explicitModel = 'Bell 412';
+  else if (mc === 'EC35' || mc === 'H135') explicitModel = 'Airbus Helicopters H135';
+  else if (mc === 'EC45' || mc === 'H145') explicitModel = 'Airbus Helicopters H145';
+  else if (mc === 'AS50' || mc === 'H125') explicitModel = 'Airbus Helicopters H125';
+  else if (mc === 'S76') explicitModel = 'Sikorsky S-76';
+  else if (mc === 'MI8' || mc === 'MI17') explicitModel = 'Mil Mi-17';
+
+  // Recognized commercial jet/turboprop models
+  const COMMERCIAL_MODELS = new Set([
+    'A318', 'A319', 'A320', 'A321', 'A20N', 'A21N',
+    'A330', 'A332', 'A333', 'A338', 'A339',
+    'A340', 'A342', 'A343', 'A345', 'A346',
+    'A350', 'A359', 'A35K',
+    'A380', 'A388',
+    'B737', 'B738', 'B739', 'B733', 'B734', 'B735', 'B37M', 'B38M', 'B39M', 'B3XM',
+    'B747', 'B744', 'B748',
+    'B752', 'B753', 'B762', 'B763', 'B764',
+    'B772', 'B773', 'B77L', 'B77W', 'B778', 'B779',
+    'B788', 'B789', 'B78X',
+    'E170', 'E175', 'E190', 'E195', 'E290', 'E295',
+    'CRJ7', 'CRJ9', 'CRJX',
+    'BCS1', 'BCS3', 'A220',
+    'AT72', 'AT75', 'AT76', 'AT42', 'AT45', 'AT46',
+    'DH8D', 'DH8C', 'Q400',
+    'D228', 'DO228',
+  ]);
+
+  const isKnownCommercialAirliner =
+    COMMERCIAL_MODELS.has(mc) ||
+    /A3[123458]\d|B7[345678]\d|MAX|ATR|DORNIER|Q400|EMBRAER/i.test(explicitModel || regEntry?.model || record?.desc || '');
+
+  const COMMERCIAL_PREFIXES = new Set([
+    'IGO', '6E',
+    'AIC', 'AI',
+    'AXB', 'IX',
+    'AKJ', 'QP',
+    'SEJ', 'SG',
+    'VTI', 'UK',
+    'LLR', '9I',
+    'FLG', 'IC',
+    'STR', 'S5',
+    'UAE', 'EK',
+    'SIA', 'SQ',
+    'QTR', 'QR',
+    'ETD', 'EY',
+    'BAW', 'BA',
+    'LHA', 'LH',
+    'AFR', 'AF',
+    'KLM', 'KL',
+    'CXA', 'CX',
+    'MAS', 'MH',
+    'THA', 'TG',
+    'OMA', 'WY',
+    'GFA', 'GF',
+    'KUW', 'KU',
+    'SVA', 'SV',
+    'JZR', 'J9',
+    'FDX', 'FX',
+    'UPS', '5X',
+    'BPA', 'BZ',
+    'QNZ', 'QO',
+  ]);
+
+  const isCommercialCallsign =
+    COMMERCIAL_PREFIXES.has(prefix3) ||
+    COMMERCIAL_PREFIXES.has(prefix2) ||
+    Boolean(airline && ['6E', 'AI', 'IX', 'QP', 'SG', 'UK', '9I', 'IC', 'S5', 'EK', 'SQ', 'QR', 'EY', 'BA', 'LH'].includes(airline.code)) ||
+    Boolean(regEntry && (regEntry.type === 'COMMERCIAL' || regEntry.type === 'CARGO' || regEntry.type === 'REGIONAL'));
 
   // 1. Military & Army Defense detection
   if (
@@ -154,14 +262,14 @@ export function classifyAircraft({ callsign, country, altFt, speedKts, vRateFpm,
     prefix3 === 'IFC' ||
     prefix3 === 'IAF' ||
     prefix3 === 'HAL' ||
-    cs.startsWith('ARMY') ||
-    cs.startsWith('NAVY') ||
-    cs.startsWith('CG') ||
-    cs.startsWith('SU30') ||
-    cs.startsWith('TEJAS') ||
-    cs.startsWith('RAFI') ||
-    cs.startsWith('INDIA') ||
-    cs.startsWith('DEF') ||
+    cleanCs.startsWith('ARMY') ||
+    cleanCs.startsWith('NAVY') ||
+    cleanCs.startsWith('CG') ||
+    cleanCs.startsWith('SU30') ||
+    cleanCs.startsWith('TEJAS') ||
+    cleanCs.startsWith('RAFI') ||
+    cleanCs.startsWith('INDIA') ||
+    cleanCs.startsWith('DEF') ||
     mc === 'SU30' ||
     mc === 'SU27' ||
     mc === 'LCA' ||
@@ -186,17 +294,34 @@ export function classifyAircraft({ callsign, country, altFt, speedKts, vRateFpm,
   }
 
   // 2. Helicopter / Rotary detection
-  if (
-    mc === 'ALH' ||
-    mc === 'B06' ||
-    mc === 'EC35' ||
-    mc === 'EC45' ||
-    mc === 'H145' ||
+  // Rigorously verified: Must be true rotorcraft, NEVER an airliner or commercial flight!
+  const HELICOPTER_MODELS = new Set([
+    'ALH', 'B06', 'B206', 'B407', 'B412', 'B429', 'B212',
+    'EC35', 'H135', 'EC45', 'H145', 'EC20', 'EC30', 'EC55', 'EC75',
+    'AS50', 'H125', 'AS55', 'AS65', 'H160', 'H175', 'H215', 'H225',
+    'S76', 'S92', 'UH60', 'S70',
+    'A109', 'AW09', 'A119', 'A139', 'AW39', 'A169', 'AW69', 'A189', 'AW89',
+    'MI8', 'MI17', 'MI24', 'MI35', 'MI26',
+    'R22', 'R44', 'R66',
+    'CH47', 'AH64', 'KA27', 'KA31', 'KA226',
+    'LCH', 'LUH',
+  ]);
+
+  const isExplicitHelicopter =
+    HELICOPTER_MODELS.has(mc) ||
+    record?.category === 'A7' ||
     prefix3 === 'PAW' ||
     prefix3 === 'HLG' ||
-    cs.startsWith('HELI') ||
-    record?.category === 'A7' ||
-    (speedKts > 30 && speedKts < 135 && altFt < 3500)
+    prefix3 === 'CSG' ||
+    cleanCs.startsWith('HELI') ||
+    cleanCs.startsWith('COPTER') ||
+    cleanCs.startsWith('ROTOR') ||
+    /helicopter|rotorcraft/i.test(record?.desc || '');
+
+  if (
+    !isKnownCommercialAirliner &&
+    !isCommercialCallsign &&
+    isExplicitHelicopter
   ) {
     return {
       category: 'HELICOPTER',
@@ -221,7 +346,7 @@ export function classifyAircraft({ callsign, country, altFt, speedKts, vRateFpm,
     prefix3 === 'BOX' ||
     prefix3 === 'ETH' ||
     mc === 'B748' ||
-    cs.includes('CARGO')
+    cleanCs.includes('CARGO')
   ) {
     const isHeavy = regEntry?.model?.includes('777') || regEntry?.model?.includes('767') || mc === 'B748';
     return {
@@ -245,8 +370,12 @@ export function classifyAircraft({ callsign, country, altFt, speedKts, vRateFpm,
     prefix3 === 'STR' ||
     mc === 'AT76' ||
     mc === 'AT72' ||
+    mc === 'AT45' ||
+    mc === 'AT42' ||
     mc === 'D228' ||
-    (speedKts < 240 && altFt < 18000 && !regEntry && !explicitModel)
+    mc === 'DO228' ||
+    mc === 'DH8D' ||
+    mc === 'Q400'
   ) {
     return {
       category: 'REGIONAL',
@@ -261,20 +390,15 @@ export function classifyAircraft({ callsign, country, altFt, speedKts, vRateFpm,
     };
   }
 
-  // Known commercial jet or turboprop model check
-  const isKnownCommercialAirliner =
-    ['A320', 'A321', 'A319', 'A20N', 'A21N', 'A359', 'A350', 'A330', 'A332', 'A333', 'A339', 'A380', 'A388', 'B737', 'B738', 'B739', 'B38M', 'B39M', 'B777', 'B77W', 'B772', 'B787', 'B788', 'B789', 'B78X', 'B747', 'B744', 'B748', 'AT72', 'AT76', 'DH8D'].includes(mc) ||
-    /A32[01]|B73[789]|MAX|777|787|350|330|ATR/i.test(explicitModel || regEntry?.model || '');
-
   // 5. Private / Corporate Business Jet detection
   const isBusinessJetModel = ['PRM1', 'E35L', 'C56X', 'GL5T', 'GLEX', 'G280', 'FA7X', 'F2TH', 'CL35', 'CL60', 'C680', 'LJ45', 'H25B'].includes(mc);
   if (
     isBusinessJetModel ||
-    (!isKnownCommercialAirliner && (
-      cs.startsWith('N1') ||
-      cs.startsWith('M-') ||
-      cs.startsWith('VP-') ||
-      (country !== 'India' && cs.length <= 5 && !regEntry)
+    (!isKnownCommercialAirliner && !isCommercialCallsign && (
+      cleanCs.startsWith('N1') ||
+      cleanCs.startsWith('M') ||
+      cleanCs.startsWith('VP') ||
+      (country !== 'India' && cleanCs.length <= 5 && !regEntry)
     ))
   ) {
     return {
@@ -294,16 +418,19 @@ export function classifyAircraft({ callsign, country, altFt, speedKts, vRateFpm,
   const isWidebody =
     regEntry?.widebody ||
     ['UAE', 'SIA', 'QTR', 'ETD', 'BAW', 'LHA', 'AFR', 'KLM', 'CXA', 'MAS', 'THA', 'JAL', 'QFA'].includes(prefix3) ||
+    ['EK', 'SQ', 'QR', 'EY', 'BA', 'LH', 'AF', 'KL', 'CX', 'MH', 'TG'].includes(prefix2) ||
     mc === 'B77W' ||
     mc === 'A359' ||
     mc === 'B789' ||
+    mc === 'A388' ||
+    mc === 'B748' ||
     (altFt > 32000 && speedKts > 450);
 
   let passengerModel = explicitModel || regEntry?.model;
   if (!passengerModel) {
     if (isWidebody) passengerModel = 'Boeing 777-300ER / Airbus A350';
-    else if (prefix3 === 'IGO') passengerModel = altFt > 25000 ? 'Airbus A321neo' : 'Airbus A320neo';
-    else if (prefix3 === 'AXB' || prefix3 === 'AKJ') passengerModel = 'Boeing 737 MAX 8';
+    else if (prefix3 === 'IGO' || prefix2 === '6E') passengerModel = altFt > 25000 ? 'Airbus A321neo' : 'Airbus A320neo';
+    else if (prefix3 === 'AXB' || prefix2 === 'IX' || prefix3 === 'AKJ' || prefix2 === 'QP') passengerModel = 'Boeing 737 MAX 8';
     else passengerModel = 'Airbus A320neo';
   }
 
@@ -356,7 +483,7 @@ export function getShortAircraftModel(f) {
   if (cs.startsWith('SU30') || desc.includes('SU-30') || desc.includes('SU30') || (f.category === 'MILITARY' && f.speedKts > 360)) return 'SU30';
   if (cs.startsWith('RAF') || cs.startsWith('RAFI') || desc.includes('RAFALE')) return 'RAFALE';
   if (cs.startsWith('IFC') || cs.startsWith('IAF') || desc.includes('C-17') || desc.includes('GLOBEMASTER')) return 'C17';
-  if (cs.startsWith('PAW') || f.category === 'HELICOPTER' || desc.includes('HELI') || desc.includes('BELL')) return 'HELI';
+  if (f.category !== 'COMMERCIAL' && (cs.startsWith('PAW') || f.category === 'HELICOPTER' || desc.includes('HELI') || desc.includes('BELL'))) return 'HELI';
 
   // 3. Fallback from description string
   if (desc.includes('A321')) return 'A321';
@@ -516,6 +643,7 @@ export function processFlightState(state, center) {
     speedKts,
     vRateFpm,
     distanceKm,
+    airline,
   });
 
   const phaseInfo = determineFlightPhase(Boolean(onGround), altFt, vRateFpm, distanceKm);
@@ -607,6 +735,7 @@ export function processAdsbRecord(record, center) {
     distanceKm,
     modelCode,
     record,
+    airline,
   });
 
   const phaseInfo = determineFlightPhase(Boolean(onGround), altFt, vRateFpm, distanceKm);
