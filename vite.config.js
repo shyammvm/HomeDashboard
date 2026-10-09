@@ -250,14 +250,66 @@ function apiProxyPlugin() {
             return res.end(JSON.stringify({ error: 'Failed to fetch recent expenses' }));
           }
 
-          // Live Flight Radar proxy (OpenSky Network with in-memory caching)
+          // Live Flight Radar proxy (adsb.lol primary -> adsb.fi secondary -> OpenSky fallback with in-memory caching)
           if (urlObj.pathname === '/api/radar/flights') {
             const now = Date.now();
-            if (global.__flightsCache && now - global.__flightsCache.timestamp < 45000) {
+            if (global.__flightsCache && now - global.__flightsCache.timestamp < 30000) {
               res.setHeader('Content-Type', 'application/json');
               return res.end(JSON.stringify({ ...global.__flightsCache.data, cached: true }));
             }
 
+            const lat = urlObj.searchParams.get('lat') || '12.9716';
+            const lon = urlObj.searchParams.get('lon') || '77.7473';
+            const radius = urlObj.searchParams.get('radius') || '50';
+            const userAgent = 'AetherDashboard/1.0 (HomeDashboard/Bangalore; shyammohanvm@gmail.com)';
+
+            // 1. Primary: adsb.lol (unrestricted real-time ADS-B aggregator)
+            try {
+              const fetchRes = await fetch(`https://api.adsb.lol/v2/point/${lat}/${lon}/${radius}`, {
+                headers: {
+                  'User-Agent': userAgent,
+                  'Accept': 'application/json',
+                },
+                signal: AbortSignal.timeout(6000),
+              });
+
+              if (fetchRes.ok) {
+                const data = await fetchRes.json();
+                if (data && Array.isArray(data.ac) && data.ac.length > 0) {
+                  const payload = { ac: data.ac, source: 'adsb-lol-live', time: Math.floor(now / 1000) };
+                  global.__flightsCache = { timestamp: now, data: payload };
+                  res.setHeader('Content-Type', 'application/json');
+                  return res.end(JSON.stringify({ ...payload, cached: false }));
+                }
+              }
+            } catch (err) {
+              console.warn('[Vite Proxy] adsb.lol error:', err.message);
+            }
+
+            // 2. Secondary: opendata.adsb.fi
+            try {
+              const fetchRes = await fetch(`https://opendata.adsb.fi/api/v2/lat/${lat}/lon/${lon}/dist/${radius}`, {
+                headers: {
+                  'User-Agent': userAgent,
+                  'Accept': 'application/json',
+                },
+                signal: AbortSignal.timeout(6000),
+              });
+
+              if (fetchRes.ok) {
+                const data = await fetchRes.json();
+                if (data && Array.isArray(data.aircraft) && data.aircraft.length > 0) {
+                  const payload = { ac: data.aircraft, source: 'adsb-fi-live', time: Math.floor(now / 1000) };
+                  global.__flightsCache = { timestamp: now, data: payload };
+                  res.setHeader('Content-Type', 'application/json');
+                  return res.end(JSON.stringify({ ...payload, cached: false }));
+                }
+              }
+            } catch (err) {
+              console.warn('[Vite Proxy] adsb.fi error:', err.message);
+            }
+
+            // 3. Tertiary: OpenSky Network
             const lamin = urlObj.searchParams.get('lamin') || '12.0';
             const lomin = urlObj.searchParams.get('lomin') || '76.4';
             const lamax = urlObj.searchParams.get('lamax') || '14.3';
@@ -270,32 +322,29 @@ function apiProxyPlugin() {
                   'User-Agent': 'Mozilla/5.0 (compatible; AetherDashboard/1.0)',
                   'Accept': 'application/json',
                 },
-                signal: AbortSignal.timeout(7000),
+                signal: AbortSignal.timeout(5000),
               });
 
               if (fetchRes.ok) {
                 const data = await fetchRes.json();
                 if (data && data.states && data.states.length > 0) {
-                  global.__flightsCache = { timestamp: now, data };
-                }
-                res.setHeader('Content-Type', 'application/json');
-                return res.end(JSON.stringify({ ...data, source: 'opensky-live', cached: false }));
-              } else {
-                if (global.__flightsCache) {
+                  global.__flightsCache = { timestamp: now, data: { ...data, source: 'opensky-live' } };
                   res.setHeader('Content-Type', 'application/json');
-                  return res.end(JSON.stringify({ ...global.__flightsCache.data, source: 'opensky-cache', cached: true }));
+                  return res.end(JSON.stringify({ ...data, source: 'opensky-live', cached: false }));
                 }
-                res.setHeader('Content-Type', 'application/json');
-                return res.end(JSON.stringify({ states: [], time: Math.floor(now / 1000), source: 'empty' }));
               }
             } catch (err) {
-              if (global.__flightsCache) {
-                res.setHeader('Content-Type', 'application/json');
-                return res.end(JSON.stringify({ ...global.__flightsCache.data, source: 'opensky-cache', cached: true }));
-              }
-              res.setHeader('Content-Type', 'application/json');
-              return res.end(JSON.stringify({ states: [], time: Math.floor(now / 1000), source: 'fallback', error: err.message }));
+              console.warn('[Vite Proxy] OpenSky error:', err.message);
             }
+
+            // 4. In-memory cache fallback
+            if (global.__flightsCache) {
+              res.setHeader('Content-Type', 'application/json');
+              return res.end(JSON.stringify({ ...global.__flightsCache.data, source: global.__flightsCache.data.source || 'cache', cached: true }));
+            }
+
+            res.setHeader('Content-Type', 'application/json');
+            return res.end(JSON.stringify({ ac: [], states: [], time: Math.floor(now / 1000), source: 'empty' }));
           }
 
           // Cloud, Rain and Weather Radar Telemetry proxy (Open-Meteo + RainViewer)

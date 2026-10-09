@@ -2,7 +2,7 @@
 // User settings, coordinates, names, and preferences are loaded directly from dashboard-settings.json.
 // To update coordinates, names, or settings, edit: dashboard-settings.json
 
-import defaultSettings from '../dashboard-settings.json';
+import defaultSettings from '../dashboard-settings.json' with { type: 'json' };
 
 export const DASHBOARD_CONFIG = {
   // Load everything directly from dashboard-settings.json (Single Source of Truth)

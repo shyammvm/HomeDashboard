@@ -258,16 +258,64 @@ app.get('/api/expenses/recent', async (req, res) => {
   return res.status(502).json({ error: 'Failed to fetch recent expenses from tracker' });
 });
 
-// Live Flight Radar proxy (OpenSky Network with in-memory caching for Bangalore airspace)
+// Live Flight Radar proxy (adsb.lol primary -> adsb.fi secondary -> OpenSky fallback with in-memory caching)
 let flightsCache = { timestamp: 0, data: null };
 app.get('/api/radar/flights', async (req, res) => {
   const now = Date.now();
-  // 45-second cache to prevent OpenSky rate limiting
-  if (flightsCache.data && now - flightsCache.timestamp < 45000) {
+  // 30-second cache to prevent slamming providers
+  if (flightsCache.data && now - flightsCache.timestamp < 30000) {
     return res.json({ ...flightsCache.data, cached: true });
   }
 
-  // Bangalore FIR bounding box (covering ~250km radius around Kempegowda VOBL / BLR)
+  const lat = req.query.lat || '12.9716';
+  const lon = req.query.lon || '77.7473';
+  const radius = req.query.radius || '50';
+  const userAgent = 'AetherDashboard/1.0 (HomeDashboard/Bangalore; shyammohanvm@gmail.com)';
+
+  // 1. Primary: adsb.lol (unrestricted real-time ADS-B aggregator)
+  try {
+    const response = await fetch(`https://api.adsb.lol/v2/point/${lat}/${lon}/${radius}`, {
+      headers: {
+        'User-Agent': userAgent,
+        'Accept': 'application/json',
+      },
+      signal: AbortSignal.timeout(6000),
+    });
+
+    if (response.ok) {
+      const data = await response.json();
+      if (data && Array.isArray(data.ac) && data.ac.length > 0) {
+        flightsCache = { timestamp: now, data: { ac: data.ac, source: 'adsb-lol-live', time: Math.floor(now / 1000) } };
+        return res.json({ ...flightsCache.data, cached: false });
+      }
+    }
+  } catch (err) {
+    console.warn('adsb.lol fetch warning:', err.message);
+  }
+
+  // 2. Secondary: opendata.adsb.fi
+  try {
+    const response = await fetch(`https://opendata.adsb.fi/api/v2/lat/${lat}/lon/${lon}/dist/${radius}`, {
+      headers: {
+        'User-Agent': userAgent,
+        'Accept': 'application/json',
+      },
+      signal: AbortSignal.timeout(6000),
+    });
+
+    if (response.ok) {
+      const data = await response.json();
+      if (data && Array.isArray(data.aircraft) && data.aircraft.length > 0) {
+        const normalized = { ac: data.aircraft, source: 'adsb-fi-live', time: Math.floor(now / 1000) };
+        flightsCache = { timestamp: now, data: normalized };
+        return res.json({ ...normalized, cached: false });
+      }
+    }
+  } catch (err) {
+    console.warn('adsb.fi fetch warning:', err.message);
+  }
+
+  // 3. Tertiary: OpenSky Network
   const lamin = req.query.lamin || '12.0';
   const lomin = req.query.lomin || '76.4';
   const lamax = req.query.lamax || '14.3';
@@ -280,29 +328,27 @@ app.get('/api/radar/flights', async (req, res) => {
         'User-Agent': 'Mozilla/5.0 (compatible; AetherDashboard/1.0)',
         'Accept': 'application/json',
       },
-      signal: AbortSignal.timeout(7000),
+      signal: AbortSignal.timeout(5000),
     });
 
     if (response.ok) {
       const data = await response.json();
       if (data && data.states && data.states.length > 0) {
-        flightsCache = { timestamp: now, data };
+        flightsCache = { timestamp: now, data: { ...data, source: 'opensky-live' } };
+        return res.json({ ...data, source: 'opensky-live', cached: false });
       }
-      return res.json({ ...data, source: 'opensky-live', cached: false });
-    } else {
-      console.warn(`OpenSky returned status ${response.status}`);
-      if (flightsCache.data) {
-        return res.json({ ...flightsCache.data, source: 'opensky-cache', cached: true });
-      }
-      return res.json({ states: [], time: Math.floor(now / 1000), source: 'empty' });
     }
   } catch (err) {
-    console.error('Error fetching live flights:', err.message);
-    if (flightsCache.data) {
-      return res.json({ ...flightsCache.data, source: 'opensky-cache', cached: true });
-    }
-    return res.json({ states: [], time: Math.floor(now / 1000), source: 'fallback', error: err.message });
+    console.warn('OpenSky fetch warning:', err.message);
   }
+
+  // 4. Return cached contacts if available
+  if (flightsCache.data) {
+    return res.json({ ...flightsCache.data, source: flightsCache.data.source || 'cache', cached: true });
+  }
+
+  // 5. Empty fallback
+  return res.json({ ac: [], states: [], time: Math.floor(now / 1000), source: 'empty' });
 });
 
 // Cloud, Rain and Weather Radar Telemetry proxy (Open-Meteo + RainViewer)

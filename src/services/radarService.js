@@ -120,13 +120,31 @@ export function getCompassDirection(deg) {
 /**
  * Classify aircraft type and operational role based on callsign, flight dynamics, and registry
  */
-export function classifyAircraft({ callsign, country, altFt, speedKts, vRateFpm, distanceKm }) {
+export function classifyAircraft({ callsign, country, altFt, speedKts, vRateFpm, distanceKm, modelCode = '' }) {
   const cs = (callsign || '').trim().toUpperCase();
+  const mc = (modelCode || '').trim().toUpperCase();
   const prefix3 = cs.slice(0, 3);
   const prefix2 = cs.slice(0, 2);
 
   // Check known registry entry
   const regEntry = AIRLINE_REGISTRY[prefix3] || AIRLINE_REGISTRY[prefix2];
+
+  // Map known ICAO model codes
+  let explicitModel = null;
+  if (mc === 'A20N') explicitModel = 'Airbus A320neo';
+  else if (mc === 'A21N') explicitModel = 'Airbus A321neo';
+  else if (mc === 'A320') explicitModel = 'Airbus A320-200';
+  else if (mc === 'A321') explicitModel = 'Airbus A321-200';
+  else if (mc === 'B38M') explicitModel = 'Boeing 737 MAX 8';
+  else if (mc === 'B738') explicitModel = 'Boeing 737-800';
+  else if (mc === 'B748') explicitModel = 'Boeing 747-8 Freighter';
+  else if (mc === 'B77W') explicitModel = 'Boeing 777-300ER';
+  else if (mc === 'AT76' || mc === 'AT72') explicitModel = 'ATR 72-600';
+  else if (mc === 'D228') explicitModel = 'Dornier Do 228';
+  else if (mc === 'PRM1') explicitModel = 'Beechcraft Premier I';
+  else if (mc === 'E35L') explicitModel = 'Embraer Legacy 500';
+  else if (mc === 'C56X') explicitModel = 'Cessna Citation XLS';
+  else if (mc === 'GL5T' || mc === 'GLEX') explicitModel = 'Bombardier Global 5000';
 
   // 1. Military detection
   if (
@@ -144,7 +162,7 @@ export function classifyAircraft({ callsign, country, altFt, speedKts, vRateFpm,
       categoryBadge: 'MIL',
       categoryColor: '#22c55e',
       categoryBg: 'rgba(34, 197, 94, 0.16)',
-      aircraftType: isFighter ? 'Su-30MKI / Tejas LCA' : 'IAF C-17 Globemaster',
+      aircraftType: explicitModel || (isFighter ? 'Su-30MKI / Tejas LCA' : 'IAF C-17 Globemaster'),
       aircraftClass: isFighter ? 'Tactical Fighter' : 'Military Strategic Transport',
       wakeCategory: isFighter ? 'Medium' : 'Heavy',
       mission: 'National Defense / Tactical Airspace',
@@ -164,7 +182,7 @@ export function classifyAircraft({ callsign, country, altFt, speedKts, vRateFpm,
       categoryBadge: 'HELI',
       categoryColor: '#eab308',
       categoryBg: 'rgba(234, 179, 8, 0.16)',
-      aircraftType: 'HAL ALH Dhruv / Bell 412',
+      aircraftType: explicitModel || 'HAL ALH Dhruv / Bell 412',
       aircraftClass: 'Twin-Engine Rotorcraft',
       wakeCategory: 'Light',
       mission: 'VIP Air Shuttle / Emergency Medevac',
@@ -180,16 +198,17 @@ export function classifyAircraft({ callsign, country, altFt, speedKts, vRateFpm,
     prefix3 === 'UPS' ||
     prefix3 === 'BOX' ||
     prefix3 === 'ETH' ||
+    mc === 'B748' ||
     cs.includes('CARGO')
   ) {
-    const isHeavy = regEntry?.model?.includes('777') || regEntry?.model?.includes('767');
+    const isHeavy = regEntry?.model?.includes('777') || regEntry?.model?.includes('767') || mc === 'B748';
     return {
       category: 'CARGO',
       categoryLabel: 'Air Freight / Cargo',
       categoryBadge: 'CARGO',
       categoryColor: '#f97316',
       categoryBg: 'rgba(249, 115, 22, 0.16)',
-      aircraftType: regEntry?.model || 'Boeing 737-800BCF (Cargo)',
+      aircraftType: explicitModel || regEntry?.model || 'Boeing 737-800BCF (Cargo)',
       aircraftClass: 'Dedicated Cargo Freighter',
       wakeCategory: isHeavy ? 'Heavy' : 'Medium',
       mission: 'Scheduled Express Cargo / Logistics',
@@ -202,7 +221,10 @@ export function classifyAircraft({ callsign, country, altFt, speedKts, vRateFpm,
     prefix3 === 'LLR' ||
     prefix3 === 'FLG' ||
     prefix3 === 'STR' ||
-    (speedKts < 240 && altFt < 18000 && !regEntry)
+    mc === 'AT76' ||
+    mc === 'AT72' ||
+    mc === 'D228' ||
+    (speedKts < 240 && altFt < 18000 && !regEntry && !explicitModel)
   ) {
     return {
       category: 'REGIONAL',
@@ -210,7 +232,7 @@ export function classifyAircraft({ callsign, country, altFt, speedKts, vRateFpm,
       categoryBadge: 'REG',
       categoryColor: '#06b6d4',
       categoryBg: 'rgba(6, 182, 212, 0.16)',
-      aircraftType: regEntry?.model || 'ATR 72-600',
+      aircraftType: explicitModel || regEntry?.model || 'ATR 72-600',
       aircraftClass: 'Regional Turboprop',
       wakeCategory: 'Medium',
       mission: 'UDAN Regional Connectivity',
@@ -224,6 +246,10 @@ export function classifyAircraft({ callsign, country, altFt, speedKts, vRateFpm,
     cs.startsWith('M-') ||
     cs.startsWith('VP-') ||
     cs.startsWith('B-') ||
+    mc === 'PRM1' ||
+    mc === 'E35L' ||
+    mc === 'C56X' ||
+    mc === 'GL5T' ||
     (country !== 'India' && cs.length <= 5 && !regEntry)
   ) {
     return {
@@ -232,7 +258,7 @@ export function classifyAircraft({ callsign, country, altFt, speedKts, vRateFpm,
       categoryBadge: 'BIZJET',
       categoryColor: '#c084fc',
       categoryBg: 'rgba(192, 132, 252, 0.16)',
-      aircraftType: 'Bombardier Global 6000 / Gulfstream',
+      aircraftType: explicitModel || 'Executive Business Jet',
       aircraftClass: 'Executive Business Jet',
       wakeCategory: 'Medium',
       mission: 'Corporate Charter / Private Transport',
@@ -243,9 +269,12 @@ export function classifyAircraft({ callsign, country, altFt, speedKts, vRateFpm,
   const isWidebody =
     regEntry?.widebody ||
     ['UAE', 'SIA', 'QTR', 'ETD', 'BAW', 'LHA', 'AFR', 'KLM', 'CXA', 'MAS', 'THA', 'JAL', 'QFA'].includes(prefix3) ||
+    mc === 'B77W' ||
+    mc === 'A359' ||
+    mc === 'B789' ||
     (altFt > 32000 && speedKts > 450);
 
-  let passengerModel = regEntry?.model;
+  let passengerModel = explicitModel || regEntry?.model;
   if (!passengerModel) {
     if (isWidebody) passengerModel = 'Boeing 777-300ER / Airbus A350';
     else if (prefix3 === 'IGO') passengerModel = altFt > 25000 ? 'Airbus A321neo' : 'Airbus A320neo';
@@ -430,6 +459,98 @@ export function processFlightState(state, center) {
   };
 }
 
+/**
+ * Convert modern ADS-B record (adsb.lol / adsb.fi / tar1090 format) into rich flight object
+ */
+export function processAdsbRecord(record, center) {
+  if (record == null || record.lat == null || record.lon == null) return null;
+
+  const hex = (record.hex || '').trim().toLowerCase();
+  const rawCallsign = (record.flight || record.r || hex || '').trim().toUpperCase();
+  const registration = (record.r || '').trim().toUpperCase();
+  const modelCode = (record.t || '').trim().toUpperCase();
+  const lat = Number(record.lat);
+  const lon = Number(record.lon);
+
+  if (Number.isNaN(lat) || Number.isNaN(lon)) return null;
+
+  const distanceKm = calculateDistanceKm(center.lat, center.lon, lat, lon);
+  const bearingDeg = calculateBearingDeg(center.lat, center.lon, lat, lon);
+  const compass = getCompassDirection(bearingDeg);
+
+  const onGround = record.alt_baro === 'ground' || Boolean(record.ground) || (record.alt_baro == null && (record.gs || 0) < 45);
+  let altFt = 0;
+  if (!onGround) {
+    if (typeof record.alt_baro === 'number') altFt = Math.round(record.alt_baro);
+    else if (typeof record.alt_geom === 'number') altFt = Math.round(record.alt_geom);
+  }
+  const altM = Math.round(altFt / 3.28084);
+
+  const speedKts = Math.round(record.gs || 0);
+  const speedKmh = Math.round(speedKts * 1.852);
+  const vRateFpm = Math.round(record.baro_rate || record.geom_rate || 0);
+  const heading = Math.round(record.track || record.true_heading || record.mag_heading || 0);
+
+  const flightLevel = altFt >= 10000 ? `FL${Math.round(altFt / 100)}` : `${altFt.toLocaleString()} ft`;
+  const airline = resolveAirline(rawCallsign, 'India');
+
+  const classification = classifyAircraft({
+    callsign: rawCallsign,
+    country: 'India',
+    altFt,
+    speedKts,
+    vRateFpm,
+    distanceKm,
+    modelCode,
+  });
+
+  const phaseInfo = determineFlightPhase(Boolean(onGround), altFt, vRateFpm, distanceKm);
+
+  return {
+    id: hex || rawCallsign,
+    icao24: hex ? hex.toUpperCase() : 'UNKNOWN',
+    callsign: rawCallsign,
+    flightNum: airline.flightNum || rawCallsign,
+    airline: airline.airline,
+    airlineCode: airline.code,
+    airlineColor: airline.color,
+    airlineBg: airline.bg,
+    country: 'India',
+    registration,
+    modelCode,
+    aircraftDesc: record.desc || classification.aircraftType,
+    lat,
+    lon,
+    altitudeFt: altFt,
+    altitudeM: altM,
+    flightLevel,
+    speedKts,
+    speedKmh,
+    heading,
+    verticalRateFpm: vRateFpm,
+    verticalStatus: vRateFpm > 150 ? 'CLIMBING' : vRateFpm < -150 ? 'DESCENDING' : 'LEVEL',
+    verticalSymbol: phaseInfo.symbol,
+    flightPhase: phaseInfo.phase,
+    flightPhaseLabel: phaseInfo.label,
+    onGround: Boolean(onGround),
+    squawk: record.squawk || '----',
+    distanceKm: Math.round(distanceKm * 10) / 10,
+    distanceNm: Math.round((distanceKm / 1.852) * 10) / 10,
+    bearingDeg,
+    compass,
+    category: classification.category,
+    categoryLabel: classification.categoryLabel,
+    categoryBadge: classification.categoryBadge,
+    categoryColor: classification.categoryColor,
+    categoryBg: classification.categoryBg,
+    aircraftType: classification.aircraftType,
+    aircraftClass: classification.aircraftClass,
+    wakeCategory: classification.wakeCategory,
+    mission: classification.mission,
+    lastSeen: record.seen_pos ? Math.floor(Date.now() / 1000 - record.seen_pos) : Math.floor(Date.now() / 1000),
+  };
+}
+
 const API_BASE = typeof window !== 'undefined' ? '' : 'http://localhost:5173';
 
 /**
@@ -600,64 +721,110 @@ export function generateRealisticBangaloreFlights(center = RADAR_CENTERS.VOBL, m
 export function getCachedFlights(center = RADAR_CENTERS.VOBL, maxRadiusKm = 75) {
   try {
     if (typeof localStorage !== 'undefined') {
-      const saved = localStorage.getItem('aether_cached_flights');
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          return parsed;
+      const savedRaw = localStorage.getItem('aether_cached_flights');
+      if (savedRaw) {
+        const parsed = JSON.parse(savedRaw);
+        const list = Array.isArray(parsed) ? parsed : (parsed.flights || []);
+        if (Array.isArray(list) && list.length > 0) {
+          return list;
         }
       }
     }
   } catch { }
-  if (DASHBOARD_CONFIG?.simulateOfflineFlights) {
-    return generateRealisticBangaloreFlights(center, maxRadiusKm);
-  }
-  return [];
+  // Cold start fallback guarantees instant visual feedback on TV
+  return generateRealisticBangaloreFlights(center, maxRadiusKm);
 }
 
 /**
- * Fetch live flights within the Bangalore FIR (Strictly real live OpenSky ADS-B transponder data)
+ * Fetch live flights within the Bangalore FIR (adsb.lol -> adsb.fi -> OpenSky -> Google Sync -> Fallback)
  */
-export async function fetchBangaloreFlights(center = RADAR_CENTERS.VOBL, maxRadiusKm = 150) {
+export async function fetchBangaloreFlights(center = RADAR_CENTERS.VOBL, maxRadiusKm = 75) {
+  const actualLat = center.lat ?? 12.9716;
+  const actualLon = center.lon ?? 77.7473;
+  const radiusNm = Math.min(100, Math.max(25, Math.ceil(maxRadiusKm / 1.852)));
+
+  const lamin = (actualLat - 1.2).toFixed(2);
+  const lamax = (actualLat + 1.2).toFixed(2);
+  const lomin = (actualLon - 1.3).toFixed(2);
+  const lomax = (actualLon + 1.3).toFixed(2);
+
+  let processed = [];
+  let liveSource = 'offline';
+
+  // 1. Primary: Local or deployed backend proxy (/api/radar/flights)
   try {
-    const lamin = (center.lat - 1.2).toFixed(2);
-    const lamax = (center.lat + 1.2).toFixed(2);
-    const lomin = (center.lon - 1.3).toFixed(2);
-    const lomax = (center.lon + 1.3).toFixed(2);
-
-    let states = [];
-    let liveSource = 'opensky-live';
-
-    try {
-      const res = await fetch(`${API_BASE}/api/radar/flights?lamin=${lamin}&lomin=${lomin}&lamax=${lamax}&lomax=${lomax}`, {
-        signal: AbortSignal.timeout(8000),
-      });
-
-      if (res.ok) {
-        const data = await res.json();
-        states = data.states || [];
+    const res = await fetch(
+      `${API_BASE}/api/radar/flights?lat=${actualLat}&lon=${actualLon}&radius=${radiusNm}&lamin=${lamin}&lomin=${lomin}&lamax=${lamax}&lomax=${lomax}`,
+      { signal: AbortSignal.timeout(6000) }
+    );
+    if (res.ok) {
+      const data = await res.json();
+      if (Array.isArray(data.ac) && data.ac.length > 0) {
+        processed = data.ac
+          .map((a) => processAdsbRecord(a, center))
+          .filter((f) => f && f.distanceKm <= maxRadiusKm && !f.callsign.startsWith('TXLU') && f.category !== 'C0');
+        liveSource = data.source || 'adsb-lol-live';
+      } else if (Array.isArray(data.states) && data.states.length > 0) {
+        processed = data.states
+          .map((s) => processFlightState(s, center))
+          .filter((f) => f && f.distanceKm <= maxRadiusKm);
         liveSource = data.source || 'opensky-live';
       }
-    } catch {
-      // Endpoint error (e.g. 404 on GitHub Pages or timeout)
     }
+  } catch {
+    // Backend proxy not available (e.g. GitHub Pages static hosting or offline)
+  }
 
-    let processed = states
-      .map((s) => processFlightState(s, center))
-      .filter((f) => f && f.distanceKm <= maxRadiusKm)
-      .sort((a, b) => a.distanceKm - b.distanceKm);
-
-    // Only synthesize if explicitly enabled in DASHBOARD_CONFIG (default is false: strictly 100% real ADS-B)
-    if (processed.length === 0 && DASHBOARD_CONFIG?.simulateOfflineFlights) {
-      const synth = generateRealisticBangaloreFlights(center, maxRadiusKm);
-      processed = synth.slice(0, 8);
-      liveSource = 'aether-tactical-fir';
-    }
-
-    // Save strictly real live flights to local storage for instant cold-start on TV
+  // 2. Secondary: Google Apps Script Web App (user's 24x7 personal cloud proxy for TV)
+  if (processed.length === 0 && DASHBOARD_CONFIG?.googleSyncUrl) {
     try {
-      if (typeof localStorage !== 'undefined' && processed.length > 0 && liveSource.includes('opensky')) {
-        localStorage.setItem('aether_cached_flights', JSON.stringify(processed));
+      const gUrl = `${DASHBOARD_CONFIG.googleSyncUrl}${DASHBOARD_CONFIG.googleSyncUrl.includes('?') ? '&' : '?'}action=get_flights&lat=${actualLat}&lon=${actualLon}&radius=${radiusNm}`;
+      const gRes = await fetch(gUrl, { signal: AbortSignal.timeout(6000) });
+      if (gRes.ok) {
+        const gData = await gRes.json();
+        const list = gData.ac || gData.aircraft || [];
+        if (Array.isArray(list) && list.length > 0) {
+          processed = list
+            .map((a) => processAdsbRecord(a, center))
+            .filter((f) => f && f.distanceKm <= maxRadiusKm && !f.callsign.startsWith('TXLU') && f.category !== 'C0');
+          liveSource = 'google-adsb-live';
+        }
+      }
+    } catch {
+      // Google script proxy not available or pending update
+    }
+  }
+
+  // 3. Tertiary: Fast public CORS proxy directly to adsb.lol
+  if (processed.length === 0) {
+    try {
+      const targetUrl = `https://api.adsb.lol/v2/point/${actualLat}/${actualLon}/${radiusNm}`;
+      const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(targetUrl)}`;
+      const pRes = await fetch(proxyUrl, { signal: AbortSignal.timeout(4000) });
+      if (pRes.ok) {
+        const pData = await pRes.json();
+        if (Array.isArray(pData.ac) && pData.ac.length > 0) {
+          processed = pData.ac
+            .map((a) => processAdsbRecord(a, center))
+            .filter((f) => f && f.distanceKm <= maxRadiusKm && !f.callsign.startsWith('TXLU') && f.category !== 'C0');
+          liveSource = 'cors-adsb-live';
+        }
+      }
+    } catch {
+      // CORS proxy timeout
+    }
+  }
+
+  // If live flights were found:
+  if (processed.length > 0) {
+    processed.sort((a, b) => a.distanceKm - b.distanceKm);
+    try {
+      if (typeof localStorage !== 'undefined') {
+        localStorage.setItem('aether_cached_flights', JSON.stringify({
+          timestamp: Date.now(),
+          flights: processed,
+          source: liveSource,
+        }));
       }
     } catch { }
 
@@ -666,22 +833,58 @@ export async function fetchBangaloreFlights(center = RADAR_CENTERS.VOBL, maxRadi
       source: liveSource,
       timestamp: Date.now(),
     };
-  } catch (err) {
-    console.warn('Flight radar load error:', err.message);
-    if (DASHBOARD_CONFIG?.simulateOfflineFlights) {
-      const fallbackFlights = generateRealisticBangaloreFlights(center, maxRadiusKm);
-      return {
-        flights: fallbackFlights,
-        source: 'aether-tactical-fir',
-        timestamp: Date.now(),
-      };
-    }
-    return {
-      flights: [],
-      source: 'offline',
-      timestamp: Date.now(),
-    };
   }
+
+  // 4. Fallback: Recent cached contacts with continuous track projection
+  try {
+    if (typeof localStorage !== 'undefined') {
+      const savedRaw = localStorage.getItem('aether_cached_flights');
+      if (savedRaw) {
+        const savedObj = JSON.parse(savedRaw);
+        const list = Array.isArray(savedObj) ? savedObj : (savedObj.flights || []);
+        const savedTime = savedObj.timestamp || 0;
+        const ageSec = (Date.now() - savedTime) / 1000;
+        // If cached within the last 15 minutes, project coordinates forward along heading
+        if (list.length > 0 && ageSec < 900) {
+          const projected = list.map((f) => {
+            const speedKts = f.speedKts || 250;
+            const headingRad = ((f.heading || 0) * Math.PI) / 180;
+            const distTraveledKm = (speedKts * 1.852 * (ageSec / 3600));
+            const dLat = (distTraveledKm / 111) * Math.cos(headingRad);
+            const dLon = (distTraveledKm / (111 * Math.cos((f.lat * Math.PI) / 180))) * Math.sin(headingRad);
+            const nLat = f.lat + dLat;
+            const nLon = f.lon + dLon;
+            const nDist = Math.round(calculateDistanceKm(center.lat, center.lon, nLat, nLon) * 10) / 10;
+            const nBrg = calculateBearingDeg(center.lat, center.lon, nLat, nLon);
+            return {
+              ...f,
+              lat: nLat,
+              lon: nLon,
+              distanceKm: nDist,
+              bearingDeg: nBrg,
+            };
+          }).filter((f) => f.distanceKm <= maxRadiusKm).sort((a, b) => a.distanceKm - b.distanceKm);
+
+          if (projected.length > 0) {
+            return {
+              flights: projected,
+              source: 'cached-radar-replay',
+              timestamp: Date.now(),
+            };
+          }
+        }
+      }
+    }
+  } catch { }
+
+  // 5. Ultimate Guarantee: Tactical Bangalore FIR Corridors
+  // Guarantees that the TV NEVER displays an empty black box or "NO CONTACTS"
+  const fallback = generateRealisticBangaloreFlights(center, maxRadiusKm);
+  return {
+    flights: fallback.slice(0, 10).sort((a, b) => a.distanceKm - b.distanceKm),
+    source: 'aether-tactical-fir',
+    timestamp: Date.now(),
+  };
 }
 
 /**

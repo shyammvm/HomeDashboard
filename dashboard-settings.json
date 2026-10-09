@@ -15,7 +15,7 @@
   "lcdSleepEnd": "06:30",
   "tvKioskAutoReloadHours": 3,
   "autoCycleSlides": true,
-  "simulateOfflineFlights": false,
+  "simulateOfflineFlights": true,
   "googleSyncUrl": "https://script.google.com/macros/s/AKfycbzy7HO2UuQSnioblG8UJqtIyV4KPoX5kTvLL0m4tnrqZDlOIueU5VsZ4K-_43-Ka9px/exec",
   "defaultCalendarUrl": "",
   "updatedAt": 1791533000000,

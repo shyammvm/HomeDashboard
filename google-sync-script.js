@@ -42,6 +42,27 @@ function doGet(e) {
     }
 
     // 2. Remote Settings Read Action
+    if (e && e.parameter && e.parameter.action === 'get_flights') {
+      const lat = e.parameter.lat || '12.9716';
+      const lon = e.parameter.lon || '77.7473';
+      const radius = e.parameter.radius || '50';
+      try {
+        const adsbUrl = 'https://api.adsb.lol/v2/point/' + lat + '/' + lon + '/' + radius;
+        const resp = UrlFetchApp.fetch(adsbUrl, {
+          headers: {
+            'User-Agent': 'AetherDashboard/1.0 (HomeDashboard/Bangalore; shyammohanvm@gmail.com)',
+            'Accept': 'application/json'
+          },
+          muteHttpExceptions: true
+        });
+        return ContentService.createTextOutput(resp.getContentText())
+          .setMimeType(ContentService.MimeType.JSON);
+      } catch (fErr) {
+        return ContentService.createTextOutput(JSON.stringify({ error: fErr.toString(), ac: [] }))
+          .setMimeType(ContentService.MimeType.JSON);
+      }
+    }
+
     if (e && e.parameter && e.parameter.action === 'get_settings') {
       const raw = props.getProperty('AETHER_SETTINGS');
       const time = props.getProperty('AETHER_SETTINGS_TIME');

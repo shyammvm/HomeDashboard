@@ -27,7 +27,7 @@ export const DEFAULT_CONFIG = {
   lcdSleepEnd: DASHBOARD_CONFIG.lcdSleepEnd || '06:30',
   tvKioskAutoReloadHours: DASHBOARD_CONFIG.tvKioskAutoReloadHours || 3,
   autoCycleSlides: DASHBOARD_CONFIG.autoCycleSlides ?? true,
-  simulateOfflineFlights: DASHBOARD_CONFIG.simulateOfflineFlights ?? false,
+  simulateOfflineFlights: DASHBOARD_CONFIG.simulateOfflineFlights ?? true,
   updatedAt: DASHBOARD_CONFIG.updatedAt || 0,
   updatedBy: DASHBOARD_CONFIG.updatedBy || 'defaults',
   remoteRefreshTrigger: 0,

@@ -67,6 +67,7 @@ export default function StarkTacticalDeck({
   // Sub-state: Airspace Radar (Strictly 50 km range on homescreen, no selectable options)
   const RADAR_RANGE_KM = 50;
   const [radarFlights, setRadarFlights] = useState(() => getCachedFlights(userLocation, 75));
+  const [radarFlightSource, setRadarFlightSource] = useState('live');
   const [cloudInfo, setCloudInfo] = useState(null);
   const [selectedFlight, setSelectedFlight] = useState(null);
 
@@ -240,6 +241,7 @@ export default function StarkTacticalDeck({
         ? flightsRes
         : (flightsRes?.flights || []);
       setRadarFlights(flightList);
+      setRadarFlightSource(flightsRes?.source || 'live');
       setCloudInfo(clouds);
     } catch (err) {
       console.warn('Airspace data load warning:', err);
@@ -876,11 +878,24 @@ export default function StarkTacticalDeck({
 
                     <div className="fw-status-top">
                       <div className="compact-airborne-pill">
-                        <span className="pulse-dot" style={{ backgroundColor: '#00f0ff', width: 5, height: 5 }} />
+                        <span
+                          className="pulse-dot"
+                          style={{
+                            backgroundColor: radarFlightSource.includes('tactical') ? '#fbbf24' : '#00f0ff',
+                            width: 5,
+                            height: 5,
+                          }}
+                        />
                         <span>{visibleFlights.length} TRACKED AIRBORNE</span>
                       </div>
                       <div className="compact-status-tag">
-                        <span>{cloudInfo?.radarCells?.length ? 'DOPPLER MET ACTIVE' : 'RADAR CLEAR'}</span>
+                        <span>
+                          {radarFlightSource.includes('tactical')
+                            ? 'TACTICAL AIRSPACE'
+                            : (radarFlightSource.includes('replay')
+                              ? 'RADAR MEMORY'
+                              : (radarFlightSource.includes('google') ? 'GOOGLE LIVE ADS-B' : 'LIVE ADS-B'))}
+                        </span>
                       </div>
                     </div>
 
@@ -940,7 +955,7 @@ export default function StarkTacticalDeck({
                             {f.flightNum || f.callsign}
                           </span>
                           <span className="tape-alt">
-                            FL{Math.round((f.altitudeM || (f.altitudeFt ? f.altitudeFt * 0.3048 : 0)) / 30.48)}
+                            {f.onGround ? 'GND' : (f.flightLevel || (f.altitudeFt >= 10000 ? `FL${Math.round(f.altitudeFt / 100)}` : `${f.altitudeFt || 0}ft`))}
                           </span>
                           <span className="tape-spd">
                             {Math.round(f.speedKts || ((f.velocityMs || 0) * 1.94384))}kt
