@@ -311,7 +311,8 @@ export default function App() {
         {/* Full-Width Tactical Console (Radar, Normal Google Traffic Map & News Looping Slides) */}
         <StarkTacticalDeck
           newsArticles={newsArticles}
-          cycleSeconds={config.newsCycleSeconds || 35}
+          cycleSeconds={config.slideCycleSeconds || 35}
+          newsCycleSeconds={config.newsCycleSeconds || 60}
           autoCycle={config.autoCycleSlides ?? true}
           userLocation={userLocation}
           commuteData={commuteData}

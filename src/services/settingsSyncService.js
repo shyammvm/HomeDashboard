@@ -57,7 +57,15 @@ export function getInitialSettings() {
         const parsed = JSON.parse(saved);
         if (parsed.city === 'Chennai' || parsed.city === 'Your Location') parsed.city = DEFAULT_CONFIG.city;
         if (parsed.officeName === 'Work / EcoWorld') parsed.officeName = DEFAULT_CONFIG.officeName;
-        if (parsed.officeAddress === 'RMZ Ecoworld, Bellandur, Bangalore') parsed.officeAddress = DEFAULT_CONFIG.officeAddress;
+        // If dashboard-settings.json has an updated timestamp that is newer than localStorage, respect dashboard-settings.json
+        if ((Number(DEFAULT_CONFIG.updatedAt) || 0) > (Number(parsed.updatedAt) || 0)) {
+          const merged = { ...parsed, ...DEFAULT_CONFIG };
+          try {
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(merged));
+          } catch {}
+          return merged;
+        }
+
         return { ...DEFAULT_CONFIG, ...parsed };
       }
     }

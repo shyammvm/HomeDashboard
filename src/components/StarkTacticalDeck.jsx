@@ -39,7 +39,8 @@ import {
 
 export default function StarkTacticalDeck({
   newsArticles = [],
-  cycleSeconds = 18,
+  cycleSeconds = 35,
+  newsCycleSeconds = 60,
   autoCycle = true,
   userLocation = { lat: 12.9716, lon: 77.7473, cityName: 'Your Location' },
   commuteData = null,
@@ -81,14 +82,9 @@ export default function StarkTacticalDeck({
   const [cloudInfo, setCloudInfo] = useState(null);
   const [selectedFlight, setSelectedFlight] = useState(null);
 
-  // Flight Color Mode: 'type' (colors by PAX, ARMY, CARGO, HELI, VIP) or 'airline' (colors by IndiGo, Air India, etc.)
-  const [flightColorMode, setFlightColorMode] = useState(() => {
-    try {
-      return localStorage.getItem('stark_flight_color_mode') || 'type';
-    } catch {
-      return 'type';
-    }
-  });
+  // Flight Color Mode: 'type' (colors flights by Mission Type: PAX, ARMY, CARGO, HELI, VIP)
+  const flightColorMode = 'type';
+
 
   // Sub-state: Surface Traffic Map with dynamic scales (2km, 10km, 20km) & auto-oscillation
   const [trafficScaleKm, setTrafficScaleKm] = useState(() => {
@@ -225,15 +221,16 @@ export default function StarkTacticalDeck({
     return () => clearInterval(timerRef.current);
   }, [isPaused, isHovered, cycleSeconds, SLIDES.length]);
 
-  // Auto-oscillate news headlines (5.5s cycle)
+  // Auto-oscillate news headlines using configured newsCycleSeconds (defaults to 60s)
   useEffect(() => {
     if (newsArticles.length <= 1 || isPaused || isHovered) return;
+    const intervalMs = Math.max(5000, Number(newsCycleSeconds || 60) * 1000);
     const interval = setInterval(() => {
       setNewsIndex((prev) => (prev + 1) % newsArticles.length);
       setNewsImgError(false);
-    }, 5500);
+    }, intervalMs);
     return () => clearInterval(interval);
-  }, [newsArticles.length, isPaused, isHovered]);
+  }, [newsArticles.length, isPaused, isHovered, newsCycleSeconds]);
 
   const goToSlide = (idx) => {
     setActiveSlide(idx);
@@ -587,36 +584,95 @@ export default function StarkTacticalDeck({
       radarSweepAngleRef.current = (radarSweepAngleRef.current + 0.032) % (Math.PI * 2);
       const angle = radarSweepAngleRef.current;
 
-      const beamGrad = ctx.createConicGradient(angle - 0.75, cx, cy);
+      const trail = 0.85; // ~49° phosphor persistence trail
+      const peakOffset = trail / (Math.PI * 2);
+
+      const beamGrad = ctx.createConicGradient(angle - trail, cx, cy);
       beamGrad.addColorStop(0, 'rgba(0, 240, 255, 0)');
-      beamGrad.addColorStop(0.7, 'rgba(0, 240, 255, 0.03)');
-      beamGrad.addColorStop(1, 'rgba(0, 240, 255, 0.32)');
+      beamGrad.addColorStop(peakOffset * 0.45, 'rgba(0, 240, 255, 0.06)');
+      beamGrad.addColorStop(peakOffset * 0.85, 'rgba(0, 240, 255, 0.20)');
+      beamGrad.addColorStop(peakOffset, 'rgba(0, 240, 255, 0.38)');
+      beamGrad.addColorStop(Math.min(1, peakOffset + 0.001), 'rgba(0, 240, 255, 0)');
+      beamGrad.addColorStop(1, 'rgba(0, 240, 255, 0)');
+
       ctx.fillStyle = beamGrad;
       ctx.beginPath();
-      ctx.arc(cx, cy, radius, 0, Math.PI * 2);
+      ctx.moveTo(cx, cy);
+      ctx.arc(cx, cy, radius, angle - trail, angle);
+      ctx.closePath();
       ctx.fill();
 
-      // Sweep Leading Line
+      // Sweep Leading Line (seamlessly touches the trailing phosphor)
       ctx.strokeStyle = '#00f0ff';
-      ctx.lineWidth = 1.3;
+      ctx.lineWidth = 1.4;
       ctx.beginPath();
       ctx.moveTo(cx, cy);
       ctx.lineTo(cx + radius * Math.cos(angle), cy + radius * Math.sin(angle));
       ctx.stroke();
 
-      // 8. Flight ADS-B Contacts: Silhouettes, Velocity Vectors, Category Colors & Clean Chips
+      // 8. Flight ADS-B Contacts: Flight Trails, Silhouettes, Velocity Vectors & Ground De-cluttering
       visibleFlights.forEach((flight, fIdx) => {
         const pt = projectGeo(flight.lat, flight.lon);
         if (!pt) return;
         const { x: px, y: py } = pt;
         const isSel = selectedFlight?.id === flight.id;
+        const isOnGround = Boolean(flight.onGround) || (flight.altitudeFt <= 200 && (flight.speedKts || 0) < 40);
 
-        // Velocity vector line
+        ctx.save();
+
+        // De-clutter ground aircraft: dim to 22% opacity when parked/taxiing
+        if (isOnGround && !isSel) {
+          ctx.globalAlpha = 0.22;
+        }
+
         const flightColor = flightColorMode === 'type'
           ? (flight.categoryColor || '#00f0ff')
           : (flight.airlineColor || flight.categoryColor || '#00f0ff');
         const headingRad = (((flight.heading || 0) - 90) * Math.PI) / 180;
-        const vLen = Math.min(22, Math.max(8, ((flight.speedKts || 250) / 400) * 18));
+        const reverseHeadingRad = headingRad + Math.PI;
+
+        // A. Flight Trail (drawn only for airborne aircraft)
+        if (!isOnGround) {
+          const trailLen = Math.min(38, Math.max(16, ((flight.speedKts || 250) / 450) * 32));
+          const trailEndX = px + trailLen * Math.cos(reverseHeadingRad);
+          const trailEndY = py + trailLen * Math.sin(reverseHeadingRad);
+
+          // Fading dashed motion vector trail
+          const lineGrad = ctx.createLinearGradient(px, py, trailEndX, trailEndY);
+          lineGrad.addColorStop(0, isSel ? 'rgba(0, 240, 255, 0.75)' : `${flightColor}cc`);
+          lineGrad.addColorStop(0.5, isSel ? 'rgba(0, 240, 255, 0.35)' : `${flightColor}55`);
+          lineGrad.addColorStop(1, isSel ? 'rgba(0, 240, 255, 0)' : `${flightColor}00`);
+
+          ctx.strokeStyle = lineGrad;
+          ctx.lineWidth = isSel ? 1.5 : 1.0;
+          ctx.setLineDash([2, 3]);
+          ctx.beginPath();
+          ctx.moveTo(px, py);
+          ctx.lineTo(trailEndX, trailEndY);
+          ctx.stroke();
+          ctx.setLineDash([]);
+
+          // Decaying radar persistence breadcrumb dots
+          const dotOffsets = [0.28, 0.58, 0.88];
+          dotOffsets.forEach((ratio, dotIdx) => {
+            const dotX = px + trailLen * ratio * Math.cos(reverseHeadingRad);
+            const dotY = py + trailLen * ratio * Math.sin(reverseHeadingRad);
+            const dotAlpha = (1 - ratio) * (isSel ? 0.8 : 0.55);
+            const dotR = Math.max(0.8, 1.8 - dotIdx * 0.4);
+
+            ctx.fillStyle = isSel
+              ? `rgba(0, 240, 255, ${dotAlpha})`
+              : `${flightColor}${Math.round(dotAlpha * 255).toString(16).padStart(2, '0')}`;
+            ctx.beginPath();
+            ctx.arc(dotX, dotY, dotR, 0, Math.PI * 2);
+            ctx.fill();
+          });
+        }
+
+        // B. Forward Velocity Vector line
+        const vLen = isOnGround
+          ? Math.min(7, Math.max(3, ((flight.speedKts || 15) / 100) * 6))
+          : Math.min(22, Math.max(8, ((flight.speedKts || 250) / 400) * 18));
         ctx.strokeStyle = isSel ? '#00f0ff' : flightColor;
         ctx.lineWidth = isSel ? 1.6 : 0.9;
         ctx.beginPath();
@@ -624,7 +680,7 @@ export default function StarkTacticalDeck({
         ctx.lineTo(px + vLen * Math.cos(headingRad), py + vLen * Math.sin(headingRad));
         ctx.stroke();
 
-        // Silhouette glyph
+        // C. Silhouette glyph
         ctx.save();
         ctx.translate(px, py);
         ctx.rotate(((flight.heading || 0) * Math.PI) / 180);
@@ -699,9 +755,9 @@ export default function StarkTacticalDeck({
         }
         ctx.restore();
 
-        // Single-line clean callsign chip with alternating offset
+        // D. Callsign chip: render only for airborne flights or when clicked/selected to prevent airport stacking clutter
         const callsignStr = (flight.flightNum || flight.callsign || '').trim();
-        if (callsignStr) {
+        if (callsignStr && (!isOnGround || isSel)) {
           ctx.font = 'bold 7.5px var(--font-mono, monospace)';
           const textW = ctx.measureText(callsignStr).width;
           const chipW = Math.max(26, textW + 6);
@@ -722,6 +778,8 @@ export default function StarkTacticalDeck({
           ctx.textAlign = 'center';
           ctx.fillText(callsignStr, chipX + chipW / 2, chipY + 8.5);
         }
+
+        ctx.restore();
       });
 
       // 9. Center Beacon for User Location
@@ -892,191 +950,171 @@ export default function StarkTacticalDeck({
                     </div>
                   </div>
 
-                  {/* Center: Live Clouds & Met Telemetry */}
-                  <div className="fw-radar-center-col">
-                    <div className="card-section-super">
-                      <span className="tag-bracket">[</span>SYS-02 // AERONAUTICAL METAR<span className="tag-bracket">]</span>
-                    </div>
+                  {/* Right: Stacked Aeronautical METAR & Sector Intercepts Panel */}
+                  <div className="fw-radar-stacked-panel">
+                    {/* Top: Live Clouds & Met Telemetry */}
+                    <div className="fw-radar-center-col fw-radar-metar-strip">
+                      <div className="fw-metar-header-row">
+                        <div className="card-section-super">
+                          <span className="tag-bracket">[</span>SYS-02 // AERONAUTICAL METAR<span className="tag-bracket">]</span>
+                        </div>
 
-                    <div className="fw-status-top">
-                      <div className="compact-airborne-pill">
-                        <span
-                          className="pulse-dot"
-                          style={{
-                            backgroundColor: radarFlightSource.includes('tactical') ? '#fbbf24' : '#00f0ff',
-                            width: 5,
-                            height: 5,
-                          }}
-                        />
-                        <span>{visibleFlights.length} TRACKED AIRBORNE</span>
+                        <div className="fw-status-top">
+                          <div className="compact-airborne-pill">
+                            <span
+                              className="pulse-dot"
+                              style={{
+                                backgroundColor: radarFlightSource.includes('tactical') ? '#fbbf24' : '#00f0ff',
+                                width: 5,
+                                height: 5,
+                              }}
+                            />
+                            <span>{visibleFlights.length} TRACKED AIRBORNE</span>
+                          </div>
+                          <div className="compact-status-tag">
+                            <span>
+                              {radarFlightSource.includes('tactical')
+                                ? 'TACTICAL AIRSPACE'
+                                : (radarFlightSource.includes('replay')
+                                  ? 'RADAR MEMORY'
+                                  : (radarFlightSource.includes('google') ? 'GOOGLE LIVE ADS-B' : 'LIVE ADS-B'))}
+                            </span>
+                          </div>
+                        </div>
                       </div>
-                      <div className="compact-status-tag">
-                        <span>
-                          {radarFlightSource.includes('tactical')
-                            ? 'TACTICAL AIRSPACE'
-                            : (radarFlightSource.includes('replay')
-                              ? 'RADAR MEMORY'
-                              : (radarFlightSource.includes('google') ? 'GOOGLE LIVE ADS-B' : 'LIVE ADS-B'))}
-                        </span>
-                      </div>
-                    </div>
 
-                    <div className="fw-cloud-card">
-                      <div className="fw-cloud-val-box">
-                        <span className="fw-cloud-val">{cloudInfo?.cloudTotal ?? 27}%</span>
-                        <span className="fw-cloud-lbl">COVER</span>
-                      </div>
-                      <div className="fw-cloud-text">
-                        <div className="fw-cloud-title">{cloudInfo?.conditionDesc || 'Partly Cloudy (SCT)'}</div>
-                        <div className="fw-cloud-sub">
-                          Visibility: <span style={{ color: '#00f0ff' }}>{cloudInfo?.visibilityKm ?? 20}km</span> • Ceiling: <span style={{ color: '#00f0ff' }}>{cloudInfo?.ceilingText || 'Unlim'}</span>
+                      <div className="fw-metar-grid-row">
+                        <div className="fw-cloud-card">
+                          <div className="fw-cloud-val-box">
+                            <span className="fw-cloud-val">{cloudInfo?.cloudTotal ?? 27}%</span>
+                            <span className="fw-cloud-lbl">COVER</span>
+                          </div>
+                          <div className="fw-cloud-text">
+                            <div className="fw-cloud-title">{cloudInfo?.conditionDesc || 'Partly Cloudy (SCT)'}</div>
+                            <div className="fw-cloud-sub">
+                              Visibility: <span style={{ color: '#00f0ff' }}>{cloudInfo?.visibilityKm ?? 20}km</span> • Ceiling: <span style={{ color: '#00f0ff' }}>{cloudInfo?.ceilingText || 'Unlim'}</span>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="fw-metar-specs-box">
+                          {/* Quick Runway & Wind Bar */}
+                          <div className="fw-metar-bar">
+                            <span className="metar-tag">VOBL 09L/27R</span>
+                            <span className="metar-dot">•</span>
+                            <span className="metar-val">WIND: {cloudInfo?.windSpeedKts ?? 14}kt @ {cloudInfo?.windDeg ?? 80}°</span>
+                            <span className="metar-dot">•</span>
+                            <span className="metar-val">QNH {cloudInfo?.pressureHpa ?? 1014}hPa</span>
+                          </div>
+
+                          <div className="fw-avionics-sub-bar">
+                            <span className="avionics-tag">XPDR: ADS-B 1090MHz</span>
+                            <span className="metar-dot">•</span>
+                            <span className="avionics-tag">MODE-S EN ROUTE</span>
+                            <span className="metar-dot">•</span>
+                            <span className="avionics-tag">RANGE: 50 KM</span>
+                          </div>
                         </div>
                       </div>
                     </div>
 
-                    {/* Quick Runway & Wind Bar */}
-                    <div className="fw-metar-bar">
-                      <span className="metar-tag">VOBL 09L/27R</span>
-                      <span className="metar-dot">•</span>
-                      <span className="metar-val">WIND: {cloudInfo?.windSpeedKts ?? 14}kt @ {cloudInfo?.windDeg ?? 80}°</span>
-                      <span className="metar-dot">•</span>
-                      <span className="metar-val">QNH {cloudInfo?.pressureHpa ?? 1014}hPa</span>
-                    </div>
-
-                    <div className="fw-avionics-sub-bar">
-                      <span className="avionics-tag">XPDR: ADS-B 1090MHz</span>
-                      <span className="metar-dot">•</span>
-                      <span className="avionics-tag">MODE-S EN ROUTE</span>
-                      <span className="metar-dot">•</span>
-                      <span className="avionics-tag">RANGE: 50 KM</span>
-                    </div>
-                  </div>
-
-                  {/* Right: Active Intercepts List within 50 km */}
-                  <div className="fw-radar-right-col">
-                    <div className="card-section-super">
-                      <span className="tag-bracket">[</span>SYS-ADSB // SECTOR INTERCEPT MATRIX<span className="tag-bracket">]</span>
-                    </div>
-
-                    <div className="tape-header-row">
-                      <span className="tape-header">AIRSPACE CONTACTS (50KM)</span>
-                      <div className="radar-color-mode-toggle">
-                        <button
-                          type="button"
-                          className={`color-mode-btn ${flightColorMode === 'type' ? 'active' : ''}`}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setFlightColorMode('type');
-                            try { localStorage.setItem('stark_flight_color_mode', 'type'); } catch {}
-                          }}
-                          title="Color flights by Mission Type (PAX, ARMY, CARGO, HELI, VIP)"
-                        >
-                          TYPE
-                        </button>
-                        <button
-                          type="button"
-                          className={`color-mode-btn ${flightColorMode === 'airline' ? 'active' : ''}`}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setFlightColorMode('airline');
-                            try { localStorage.setItem('stark_flight_color_mode', 'airline'); } catch {}
-                          }}
-                          title="Color flights by Airline Brand (IndiGo, Air India, Akasa)"
-                        >
-                          AIRLINE
-                        </button>
+                    {/* Bottom: Active Intercepts List within 50 km */}
+                    <div className="fw-radar-right-col fw-radar-intercepts-strip">
+                      <div className="tape-header-row">
+                        <div className="card-section-super">
+                          <span className="tag-bracket">[</span>SYS-ADSB // SECTOR INTERCEPT MATRIX<span className="tag-bracket">]</span>
+                        </div>
                       </div>
-                      <span className="compact-news-counter">[{visibleFlights.length} TARGETS]</span>
-                    </div>
 
-                    <div className="radar-table-head">
-                      <span className="col-flight">FLIGHT / OPERATOR</span>
-                      <span className="col-class">CLASS</span>
-                      <span className="col-type">MODEL</span>
-                      <span className="col-alt">ALT</span>
-                      <span className="col-spd">SPD</span>
-                      <span className="col-dist">DIST</span>
-                    </div>
+                      <div className="radar-table-head">
+                        <span className="col-flight">FLIGHT / OPERATOR</span>
+                        <span className="col-class">CLASS</span>
+                        <span className="col-type">MODEL</span>
+                        <span className="col-alt">ALT</span>
+                        <span className="col-spd">SPD</span>
+                        <span className="col-dist">DIST</span>
+                      </div>
 
-                    <div className="fw-contacts-list">
-                      {visibleFlights.slice(0, 6).map((f) => {
-                        const flightColor = flightColorMode === 'type'
-                          ? (f.categoryColor || '#00f0ff')
-                          : (f.airlineColor || f.categoryColor || '#00f0ff');
-                        const shortModel = getShortAircraftModel(f);
-                        const companyName = f.airline || 'Civil Aircraft';
-                        const flightId = f.flightNum || f.callsign || 'UNK';
-                        const classBadge = f.categoryBadge || (f.category === 'MILITARY' ? 'ARMY' : (f.category === 'COMMERCIAL' ? 'PAX' : 'CIV'));
-                        const altText = f.onGround
-                          ? 'GND'
-                          : (f.flightLevel || (f.altitudeFt >= 10000 ? `FL${Math.round(f.altitudeFt / 100)}` : `${f.altitudeFt || 0}ft`));
-                        const spdText = `${Math.round(f.speedKts || ((f.velocityMs || 0) * 1.94384))}kt`;
-                        const distText = `${f.distanceKm}km`;
+                      <div className="fw-contacts-list">
+                        {visibleFlights.slice(0, 7).map((f) => {
+                          const flightColor = flightColorMode === 'type'
+                            ? (f.categoryColor || '#00f0ff')
+                            : (f.airlineColor || f.categoryColor || '#00f0ff');
+                          const shortModel = getShortAircraftModel(f);
+                          const companyName = f.airline || 'Civil Aircraft';
+                          const flightId = f.flightNum || f.callsign || 'UNK';
+                          const classBadge = f.categoryBadge || (f.category === 'MILITARY' ? 'ARMY' : (f.category === 'COMMERCIAL' ? 'PAX' : 'CIV'));
+                          const altText = f.onGround
+                            ? 'GND'
+                            : (f.flightLevel || (f.altitudeFt >= 10000 ? `FL${Math.round(f.altitudeFt / 100)}` : `${f.altitudeFt || 0}ft`));
+                          const spdText = `${Math.round(f.speedKts || ((f.velocityMs || 0) * 1.94384))}kt`;
+                          const distText = `${f.distanceKm}km`;
 
-                        return (
-                          <div
-                            key={f.id}
-                            className={`tape-item ${selectedFlight?.id === f.id ? 'active' : ''}`}
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setSelectedFlight(f);
-                            }}
-                            title={`${flightId} • ${companyName} • ${classBadge} • ${shortModel} • ${altText} • ${spdText}`}
-                          >
-                            <div className="tape-col-flight">
-                              <span
-                                className="tape-airline-dot"
-                                style={{ backgroundColor: flightColor, boxShadow: `0 0 6px ${flightColor}aa` }}
-                              />
-                              <div className="tape-flight-info">
-                                <span className="tape-callsign" style={{ color: flightColor }}>
-                                  {flightId}
-                                </span>
-                                <span className="tape-company-name">
-                                  {companyName}
+                          return (
+                            <div
+                              key={f.id}
+                              className={`tape-item ${selectedFlight?.id === f.id ? 'active' : ''}`}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setSelectedFlight(f);
+                              }}
+                              title={`${flightId} • ${companyName} • ${classBadge} • ${shortModel} • ${altText} • ${spdText}`}
+                            >
+                              <div className="tape-col-flight">
+                                <span
+                                  className="tape-airline-dot"
+                                  style={{ backgroundColor: flightColor, boxShadow: `0 0 6px ${flightColor}aa` }}
+                                />
+                                <div className="tape-flight-info">
+                                  <span className="tape-callsign" style={{ color: flightColor }}>
+                                    {flightId}
+                                  </span>
+                                  <span className="tape-company-name">
+                                    {companyName}
+                                  </span>
+                                </div>
+                              </div>
+                              <div className="tape-col-class">
+                                <span
+                                  className="tape-class-badge"
+                                  style={{
+                                    borderColor: `${flightColor}55`,
+                                    color: flightColor,
+                                    background: `${flightColor}18`,
+                                  }}
+                                >
+                                  {classBadge}
                                 </span>
                               </div>
+                              <div className="tape-col-type">
+                                <span className="tape-model-badge">
+                                  {shortModel}
+                                </span>
+                              </div>
+                              <span className="tape-alt">{altText}</span>
+                              <span className="tape-spd">{spdText}</span>
+                              <span className="tape-dist">{distText}</span>
                             </div>
-                            <div className="tape-col-class">
-                              <span
-                                className="tape-class-badge"
-                                style={{
-                                  borderColor: `${flightColor}55`,
-                                  color: flightColor,
-                                  background: `${flightColor}18`,
-                                }}
-                              >
-                                {classBadge}
-                              </span>
+                          );
+                        })}
+                        {visibleFlights.length === 0 && (
+                          <div className="tactical-radar-scan-box">
+                            <div className="scan-line-anim" />
+                            <div className="scan-telemetry-row">
+                              <span className="scan-dot active" />
+                              <span>SWEEP: 360° CONTINUOUS SCAN</span>
                             </div>
-                            <div className="tape-col-type">
-                              <span className="tape-model-badge">
-                                {shortModel}
-                              </span>
+                            <div className="scan-telemetry-row">
+                              <span className="scan-dot" />
+                              <span>AIRSPACE: 50 KM PERIMETER SECURE</span>
                             </div>
-                            <span className="tape-alt">{altText}</span>
-                            <span className="tape-spd">{spdText}</span>
-                            <span className="tape-dist">{distText}</span>
+                            <div className="scan-telemetry-row">
+                              <span className="scan-dot" />
+                              <span>AERODROMES: VOBL • VOBG • VOJK</span>
+                            </div>
                           </div>
-                        );
-                      })}
-                      {visibleFlights.length === 0 && (
-                        <div className="tactical-radar-scan-box">
-                          <div className="scan-line-anim" />
-                          <div className="scan-telemetry-row">
-                            <span className="scan-dot active" />
-                            <span>SWEEP: 360° CONTINUOUS SCAN</span>
-                          </div>
-                          <div className="scan-telemetry-row">
-                            <span className="scan-dot" />
-                            <span>AIRSPACE: 50 KM PERIMETER SECURE</span>
-                          </div>
-                          <div className="scan-telemetry-row">
-                            <span className="scan-dot" />
-                            <span>AERODROMES: VOBL • VOBG • VOJK</span>
-                          </div>
-                        </div>
-                      )}
+                        )}
+                      </div>
                     </div>
                   </div>
                 </div>

@@ -261,18 +261,21 @@ export function classifyAircraft({ callsign, country, altFt, speedKts, vRateFpm,
     };
   }
 
+  // Known commercial jet or turboprop model check
+  const isKnownCommercialAirliner =
+    ['A320', 'A321', 'A319', 'A20N', 'A21N', 'A359', 'A350', 'A330', 'A332', 'A333', 'A339', 'A380', 'A388', 'B737', 'B738', 'B739', 'B38M', 'B39M', 'B777', 'B77W', 'B772', 'B787', 'B788', 'B789', 'B78X', 'B747', 'B744', 'B748', 'AT72', 'AT76', 'DH8D'].includes(mc) ||
+    /A32[01]|B73[789]|MAX|777|787|350|330|ATR/i.test(explicitModel || regEntry?.model || '');
+
   // 5. Private / Corporate Business Jet detection
+  const isBusinessJetModel = ['PRM1', 'E35L', 'C56X', 'GL5T', 'GLEX', 'G280', 'FA7X', 'F2TH', 'CL35', 'CL60', 'C680', 'LJ45', 'H25B'].includes(mc);
   if (
-    cs.startsWith('VT-') ||
-    cs.startsWith('N1') ||
-    cs.startsWith('M-') ||
-    cs.startsWith('VP-') ||
-    cs.startsWith('B-') ||
-    mc === 'PRM1' ||
-    mc === 'E35L' ||
-    mc === 'C56X' ||
-    mc === 'GL5T' ||
-    (country !== 'India' && cs.length <= 5 && !regEntry)
+    isBusinessJetModel ||
+    (!isKnownCommercialAirliner && (
+      cs.startsWith('N1') ||
+      cs.startsWith('M-') ||
+      cs.startsWith('VP-') ||
+      (country !== 'India' && cs.length <= 5 && !regEntry)
+    ))
   ) {
     return {
       category: 'PRIVATE',
@@ -434,6 +437,26 @@ export function resolveAirline(rawCallsign, country = 'India') {
         color: info.color,
         bg: info.bg,
       };
+    }
+  }
+
+  // Resolve Indian tail registrations (VT-...) to corresponding airlines
+  if (callsign.startsWith('VT-') || callsign.startsWith('VT')) {
+    const regSuffix = callsign.replace(/^VT-?/, '');
+    if (regSuffix.startsWith('YA')) {
+      return { callsign, flightNum: callsign, airline: 'Akasa Air', code: 'QP', color: '#ff6200', bg: 'rgba(255, 98, 0, 0.16)' };
+    }
+    if (regSuffix.startsWith('TN')) {
+      return { callsign, flightNum: callsign, airline: 'Air India (Vistara)', code: 'AI', color: '#9333ea', bg: 'rgba(147, 51, 234, 0.16)' };
+    }
+    if (regSuffix.startsWith('I')) {
+      return { callsign, flightNum: callsign, airline: 'IndiGo', code: '6E', color: '#0080ff', bg: 'rgba(0, 128, 255, 0.16)' };
+    }
+    if (regSuffix.startsWith('EX') || regSuffix.startsWith('ED') || regSuffix.startsWith('CI') || regSuffix.startsWith('AN')) {
+      return { callsign, flightNum: callsign, airline: 'Air India', code: 'AI', color: '#e52424', bg: 'rgba(229, 36, 36, 0.16)' };
+    }
+    if (regSuffix.startsWith('SG') || regSuffix.startsWith('SL') || regSuffix.startsWith('SQ')) {
+      return { callsign, flightNum: callsign, airline: 'SpiceJet', code: 'SG', color: '#ef4444', bg: 'rgba(239, 68, 68, 0.16)' };
     }
   }
 

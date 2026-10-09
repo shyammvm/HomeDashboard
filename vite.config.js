@@ -69,14 +69,18 @@ function apiProxyPlugin() {
 
             if (req.method === 'GET') {
               let saved = null;
+              let effectiveUpdatedAt = 0;
               try {
                 if (fs.existsSync(settingsFile)) {
                   saved = JSON.parse(fs.readFileSync(settingsFile, 'utf-8'));
+                  const mtime = Math.round(fs.statSync(settingsFile).mtimeMs);
+                  effectiveUpdatedAt = Math.max(Number(saved?.updatedAt) || 0, mtime);
+                  saved.updatedAt = effectiveUpdatedAt;
                 }
               } catch (e) {
                 console.warn('Vite proxy settings read error:', e);
               }
-              return res.end(JSON.stringify({ status: 'ok', settings: saved, updatedAt: saved?.updatedAt || 0 }));
+              return res.end(JSON.stringify({ status: 'ok', settings: saved, updatedAt: effectiveUpdatedAt }));
             }
 
             if (req.method === 'POST') {
