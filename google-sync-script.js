@@ -288,3 +288,24 @@ function inferPriority(title, notes) {
   if (text.includes('medium') || text.includes('med priority')) return 'med';
   return 'normal';
 }
+
+/**
+ * Run this function once inside script.google.com editor to grant external request permission!
+ */
+function testFlights() {
+  var url = 'https://api.adsb.lol/v2/point/12.9716/77.7473/50';
+  var resp = UrlFetchApp.fetch(url, {
+    headers: {
+      'User-Agent': 'AetherDashboard/1.0 (HomeDashboard/Bangalore; shyammohanvm@gmail.com)',
+      'Accept': 'application/json'
+    },
+    muteHttpExceptions: true
+  });
+  var data = JSON.parse(resp.getContentText());
+  Logger.log('Success! Live aircraft count: ' + (data.ac ? data.ac.length : 0));
+  if (data.ac) {
+    data.ac.slice(0, 5).forEach(function(a) {
+      Logger.log((a.flight || a.hex) + ' | ' + (a.t || 'UNK') + ' | ' + (a.alt_baro || 'GND') + 'ft');
+    });
+  }
+}

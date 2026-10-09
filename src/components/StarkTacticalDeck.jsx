@@ -67,7 +67,16 @@ export default function StarkTacticalDeck({
   // Sub-state: Airspace Radar (Strictly 50 km range on homescreen, no selectable options)
   const RADAR_RANGE_KM = 50;
   const [radarFlights, setRadarFlights] = useState(() => getCachedFlights(userLocation, 75));
-  const [radarFlightSource, setRadarFlightSource] = useState('live');
+  const [radarFlightSource, setRadarFlightSource] = useState(() => {
+    try {
+      const s = localStorage.getItem('aether_cached_flights');
+      if (s) {
+        const o = JSON.parse(s);
+        return o?.source || 'loading';
+      }
+    } catch {}
+    return 'loading';
+  });
   const [cloudInfo, setCloudInfo] = useState(null);
   const [selectedFlight, setSelectedFlight] = useState(null);
 

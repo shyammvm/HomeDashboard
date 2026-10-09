@@ -8,7 +8,7 @@
   "expenseTrackerApiUrl": "https://smartexpensetracker-vtkb.onrender.com",
   "expenseTrackerSecret": "2546698",
   "rssUrl": "https://feeds.bbci.co.uk/news/world/rss.xml",
-  "newsCycleSeconds": 35,
+  "newsCycleSeconds": 60,
   "rotation": 0,
   "lcdSleepMode": false,
   "lcdSleepStart": "23:30",
