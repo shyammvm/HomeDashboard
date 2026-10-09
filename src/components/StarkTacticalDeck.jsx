@@ -21,6 +21,7 @@ import {
   getCachedFlights,
   calculateDistanceKm,
   calculateBearingDeg,
+  getShortAircraftModel,
 } from '../services/radarService';
 import {
   BANGALORE_METRO_BOUNDARY,
@@ -602,9 +603,10 @@ export default function StarkTacticalDeck({
         const isSel = selectedFlight?.id === flight.id;
 
         // Velocity vector line
+        const flightColor = flight.airlineColor || flight.categoryColor || '#00f0ff';
         const headingRad = (((flight.heading || 0) - 90) * Math.PI) / 180;
         const vLen = Math.min(22, Math.max(8, ((flight.speedKts || 250) / 400) * 18));
-        ctx.strokeStyle = isSel ? '#00f0ff' : (flight.categoryColor || '#00f0ff');
+        ctx.strokeStyle = isSel ? '#00f0ff' : flightColor;
         ctx.lineWidth = isSel ? 1.6 : 0.9;
         ctx.beginPath();
         ctx.moveTo(px, py);
@@ -615,7 +617,7 @@ export default function StarkTacticalDeck({
         ctx.save();
         ctx.translate(px, py);
         ctx.rotate(((flight.heading || 0) * Math.PI) / 180);
-        ctx.fillStyle = isSel ? '#00f0ff' : (flight.categoryColor || '#00f0ff');
+        ctx.fillStyle = isSel ? '#00f0ff' : flightColor;
         ctx.strokeStyle = '#020617';
         ctx.lineWidth = 0.8;
 
@@ -698,7 +700,7 @@ export default function StarkTacticalDeck({
           const chipY = py - 5;
 
           ctx.fillStyle = isSel ? 'rgba(8, 47, 73, 0.95)' : 'rgba(2, 6, 23, 0.85)';
-          ctx.strokeStyle = isSel ? '#00f0ff' : (flight.categoryColor ? `${flight.categoryColor}66` : 'rgba(0, 240, 255, 0.3)');
+          ctx.strokeStyle = isSel ? '#00f0ff' : `${flightColor}77`;
           ctx.lineWidth = 0.8;
           ctx.beginPath();
           ctx.roundRect(chipX, chipY, chipW, chipH, 2.5);
@@ -950,28 +952,64 @@ export default function StarkTacticalDeck({
                       <span className="compact-news-counter">[{visibleFlights.length} TARGETS]</span>
                     </div>
 
+                    <div className="radar-table-head">
+                      <span className="col-flight">FLIGHT / OPERATOR</span>
+                      <span className="col-type">TYPE</span>
+                      <span className="col-alt">ALT</span>
+                      <span className="col-spd">SPD</span>
+                      <span className="col-dist">DIST</span>
+                    </div>
+
                     <div className="fw-contacts-list">
-                      {visibleFlights.slice(0, 5).map((f) => (
-                        <div
-                          key={f.id}
-                          className={`tape-item ${selectedFlight?.id === f.id ? 'active' : ''}`}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setSelectedFlight(f);
-                          }}
-                        >
-                          <span className="tape-callsign" style={{ color: f.categoryColor || '#fff' }}>
-                            {f.flightNum || f.callsign}
-                          </span>
-                          <span className="tape-alt">
-                            {f.onGround ? 'GND' : (f.flightLevel || (f.altitudeFt >= 10000 ? `FL${Math.round(f.altitudeFt / 100)}` : `${f.altitudeFt || 0}ft`))}
-                          </span>
-                          <span className="tape-spd">
-                            {Math.round(f.speedKts || ((f.velocityMs || 0) * 1.94384))}kt
-                          </span>
-                          <span className="tape-dist">{f.distanceKm}km</span>
-                        </div>
-                      ))}
+                      {visibleFlights.slice(0, 5).map((f) => {
+                        const flightColor = f.airlineColor || f.categoryColor || '#00f0ff';
+                        const shortModel = getShortAircraftModel(f);
+                        const companyName = f.airline || 'Civil Aircraft';
+                        const flightId = f.flightNum || f.callsign || 'UNK';
+                        const altText = f.onGround
+                          ? 'GND'
+                          : (f.flightLevel || (f.altitudeFt >= 10000 ? `FL${Math.round(f.altitudeFt / 100)}` : `${f.altitudeFt || 0}ft`));
+                        const spdText = `${Math.round(f.speedKts || ((f.velocityMs || 0) * 1.94384))}kt`;
+                        const distText = `${f.distanceKm}km`;
+
+                        return (
+                          <div
+                            key={f.id}
+                            className={`tape-item ${selectedFlight?.id === f.id ? 'active' : ''}`}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setSelectedFlight(f);
+                            }}
+                            title={`${flightId} • ${companyName} • ${shortModel} • ${altText} • ${spdText}`}
+                          >
+                            <div className="tape-col-flight">
+                              <span
+                                className="tape-airline-dot"
+                                style={{ backgroundColor: flightColor, boxShadow: `0 0 6px ${flightColor}99` }}
+                              />
+                              <div className="tape-flight-info">
+                                <span className="tape-callsign" style={{ color: flightColor }}>
+                                  {flightId}
+                                </span>
+                                <span className="tape-company-name">
+                                  {companyName}
+                                </span>
+                              </div>
+                            </div>
+                            <div className="tape-col-type">
+                              <span
+                                className="tape-model-badge"
+                                style={{ borderColor: `${flightColor}55`, color: flightColor }}
+                              >
+                                {shortModel}
+                              </span>
+                            </div>
+                            <span className="tape-alt">{altText}</span>
+                            <span className="tape-spd">{spdText}</span>
+                            <span className="tape-dist">{distText}</span>
+                          </div>
+                        );
+                      })}
                       {visibleFlights.length === 0 && (
                         <div className="tactical-radar-scan-box">
                           <div className="scan-line-anim" />
@@ -989,6 +1027,45 @@ export default function StarkTacticalDeck({
                           </div>
                         </div>
                       )}
+                    </div>
+
+                    {/* Operator Color Legend */}
+                    <div className="radar-operator-legend">
+                      <div className="legend-title">OPERATOR COLOR IDENTIFIERS</div>
+                      <div className="legend-grid">
+                        <div className="legend-item" title="IndiGo">
+                          <span className="legend-color-dot" style={{ backgroundColor: '#0080ff' }} />
+                          <span className="legend-label">IndiGo</span>
+                        </div>
+                        <div className="legend-item" title="Air India">
+                          <span className="legend-color-dot" style={{ backgroundColor: '#e52424' }} />
+                          <span className="legend-label">Air India</span>
+                        </div>
+                        <div className="legend-item" title="Akasa Air">
+                          <span className="legend-color-dot" style={{ backgroundColor: '#ff6200' }} />
+                          <span className="legend-label">Akasa</span>
+                        </div>
+                        <div className="legend-item" title="Air India Express">
+                          <span className="legend-color-dot" style={{ backgroundColor: '#f97316' }} />
+                          <span className="legend-label">AI Express</span>
+                        </div>
+                        <div className="legend-item" title="SpiceJet">
+                          <span className="legend-color-dot" style={{ backgroundColor: '#ef4444' }} />
+                          <span className="legend-label">SpiceJet</span>
+                        </div>
+                        <div className="legend-item" title="Indian Air Force / Defense">
+                          <span className="legend-color-dot" style={{ backgroundColor: '#22c55e' }} />
+                          <span className="legend-label">IAF / Defense</span>
+                        </div>
+                        <div className="legend-item" title="Helicopters / Rotary">
+                          <span className="legend-color-dot" style={{ backgroundColor: '#eab308' }} />
+                          <span className="legend-label">Helicopter</span>
+                        </div>
+                        <div className="legend-item" title="Commercial & International">
+                          <span className="legend-color-dot" style={{ backgroundColor: '#38bdf8' }} />
+                          <span className="legend-label">Other / Int'l</span>
+                        </div>
+                      </div>
                     </div>
                   </div>
                 </div>

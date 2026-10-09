@@ -296,6 +296,65 @@ export function classifyAircraft({ callsign, country, altFt, speedKts, vRateFpm,
 }
 
 /**
+ * Convert detailed aircraft model / classification into short recognizable tactical code (e.g. A320, B737, SU30)
+ */
+export function getShortAircraftModel(f) {
+  if (!f) return '---';
+  const mc = (f.modelCode || '').trim().toUpperCase();
+  const cs = (f.callsign || '').trim().toUpperCase();
+  const desc = (f.aircraftType || f.aircraftDesc || '').toUpperCase();
+
+  // 1. Direct ICAO Type Code shortcuts
+  if (mc === 'A20N' || mc === 'A320') return 'A320';
+  if (mc === 'A21N' || mc === 'A321') return 'A321';
+  if (mc === 'A319') return 'A319';
+  if (mc === 'A359' || mc === 'A35K' || mc === 'A350') return 'A350';
+  if (mc === 'A332' || mc === 'A333' || mc === 'A339' || mc === 'A330') return 'A330';
+  if (mc === 'A388' || mc === 'A380') return 'A380';
+  if (mc === 'B38M' || mc === 'B39M') return 'B737 MAX';
+  if (mc === 'B738' || mc === 'B737' || mc === 'B739') return 'B737';
+  if (mc === 'B77W' || mc === 'B772' || mc === 'B77L' || mc === 'B777') return 'B777';
+  if (mc === 'B788' || mc === 'B789' || mc === 'B78X') return 'B787';
+  if (mc === 'B744' || mc === 'B748') return 'B747';
+  if (mc === 'AT76' || mc === 'AT72') return 'ATR72';
+  if (mc === 'AT45' || mc === 'AT42') return 'ATR42';
+  if (mc === 'D228' || mc === 'DO228') return 'DO228';
+  if (mc === 'DH8D' || mc === 'Q400') return 'Q400';
+  if (mc === 'E35L') return 'LEGACY';
+  if (mc === 'PRM1') return 'PREMIER';
+  if (mc === 'C56X') return 'CITATION';
+  if (mc === 'GL5T' || mc === 'GLEX') return 'GLOBAL';
+  if (mc === 'ALH' || mc === 'DHRUV') return 'DHRUV';
+
+  // 2. Military and Defense
+  if (cs.startsWith('HAL') || desc.includes('TEJAS')) return 'TEJAS';
+  if (cs.startsWith('SU30') || desc.includes('SU-30') || desc.includes('SU30') || (f.category === 'MILITARY' && f.speedKts > 360)) return 'SU30';
+  if (cs.startsWith('RAF') || cs.startsWith('RAFI') || desc.includes('RAFALE')) return 'RAFALE';
+  if (cs.startsWith('IFC') || cs.startsWith('IAF') || desc.includes('C-17') || desc.includes('GLOBEMASTER')) return 'C17';
+  if (cs.startsWith('PAW') || f.category === 'HELICOPTER' || desc.includes('HELI') || desc.includes('BELL')) return 'HELI';
+
+  // 3. Fallback from description string
+  if (desc.includes('A321')) return 'A321';
+  if (desc.includes('A320')) return 'A320';
+  if (desc.includes('MAX') || desc.includes('737 MAX')) return 'B737 MAX';
+  if (desc.includes('737')) return 'B737';
+  if (desc.includes('777')) return 'B777';
+  if (desc.includes('787')) return 'B787';
+  if (desc.includes('747')) return 'B747';
+  if (desc.includes('350')) return 'A350';
+  if (desc.includes('330')) return 'A330';
+  if (desc.includes('ATR')) return 'ATR72';
+  if (desc.includes('SU-30') || desc.includes('SU30')) return 'SU30';
+  if (desc.includes('TEJAS')) return 'TEJAS';
+  if (desc.includes('DORNIER') || desc.includes('228')) return 'DO228';
+  if (desc.includes('BUSINESS') || f.category === 'PRIVATE') return 'BIZJET';
+  if (f.category === 'CARGO') return 'CARGO';
+
+  if (mc && mc.length <= 6) return mc;
+  return f.category === 'COMMERCIAL' ? 'A320' : (f.categoryBadge || 'AIRCRAFT');
+}
+
+/**
  * Determine flight phase (Climb, Descent, Final Approach, Cruise, Ground)
  */
 export function determineFlightPhase(onGround, altFt, vRateFpm, distanceKm) {

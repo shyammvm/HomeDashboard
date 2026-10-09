@@ -4557,12 +4557,206 @@ body {
   box-shadow: 0 0 10px rgba(0, 240, 255, 0.3);
 }
 
+/* Airspace Contacts Table & Column Header */
+.radar-table-head {
+  display: grid;
+  grid-template-columns: 1.45fr 60px 48px 46px 44px;
+  gap: 6px;
+  align-items: center;
+  padding: 4px 6px;
+  font-family: var(--font-mono);
+  font-size: 7.5px;
+  font-weight: 800;
+  color: var(--text-dim);
+  letter-spacing: 0.6px;
+  border-bottom: 1px solid rgba(0, 240, 255, 0.15);
+  margin-bottom: 3px;
+}
+
+.radar-table-head .col-flight { text-align: left; }
+.radar-table-head .col-type { text-align: center; }
+.radar-table-head .col-alt { text-align: right; }
+.radar-table-head .col-spd { text-align: right; }
+.radar-table-head .col-dist { text-align: right; }
+
 .fw-contacts-list {
   display: flex;
   flex-direction: column;
   gap: 3px;
-  max-height: 280px;
+  max-height: 230px;
   overflow-y: auto;
+}
+
+.fw-contacts-list .tape-item {
+  display: grid;
+  grid-template-columns: 1.45fr 60px 48px 46px 44px;
+  gap: 6px;
+  align-items: center;
+  font-family: var(--font-mono);
+  padding: 4px 6px;
+  border-radius: 4px;
+  background: rgba(2, 6, 23, 0.55);
+  border: 1px solid rgba(0, 240, 255, 0.09);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.fw-contacts-list .tape-item:hover,
+.fw-contacts-list .tape-item.active {
+  background: rgba(0, 240, 255, 0.1);
+  border-color: rgba(0, 240, 255, 0.38);
+  box-shadow: 0 0 10px rgba(0, 240, 255, 0.12);
+}
+
+.tape-col-flight {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.tape-airline-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.tape-flight-info {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  line-height: 1.15;
+}
+
+.tape-callsign {
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  font-weight: 800;
+  letter-spacing: 0.3px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.tape-company-name {
+  font-family: var(--font-sans, system-ui);
+  font-size: 8px;
+  color: var(--text-dim);
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.tape-col-type {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.tape-model-badge {
+  font-family: var(--font-mono);
+  font-size: 8px;
+  font-weight: 800;
+  text-align: center;
+  padding: 1px 4px;
+  border-radius: 3px;
+  background: rgba(0, 240, 255, 0.05);
+  border: 1px solid rgba(0, 240, 255, 0.2);
+  white-space: nowrap;
+  letter-spacing: 0.3px;
+}
+
+.fw-contacts-list .tape-alt {
+  font-family: var(--font-mono);
+  font-size: 8.5px;
+  color: var(--stark-cyan);
+  font-weight: 700;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.fw-contacts-list .tape-spd {
+  font-family: var(--font-mono);
+  font-size: 8px;
+  color: #94a3b8;
+  font-weight: 600;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.fw-contacts-list .tape-dist {
+  font-family: var(--font-mono);
+  font-size: 8px;
+  color: var(--stark-gold);
+  font-weight: 700;
+  text-align: right;
+  white-space: nowrap;
+}
+
+/* Operator Color Legend Below Airspace Table */
+.radar-operator-legend {
+  margin-top: 8px;
+  padding: 7px 9px;
+  background: rgba(2, 6, 23, 0.75);
+  border: 1px solid rgba(0, 240, 255, 0.16);
+  border-radius: 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.legend-title {
+  font-family: var(--font-mono);
+  font-size: 7.5px;
+  font-weight: 800;
+  color: var(--text-dim);
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.legend-title::before {
+  content: '';
+  display: inline-block;
+  width: 4px;
+  height: 4px;
+  background: var(--stark-cyan);
+  border-radius: 50%;
+  box-shadow: 0 0 6px var(--stark-cyan);
+}
+
+.legend-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 4px 6px;
+}
+
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+}
+
+.legend-color-dot {
+  width: 6.5px;
+  height: 6.5px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.legend-label {
+  font-family: var(--font-mono);
+  font-size: 8px;
+  color: #cbd5e1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 600;
 }
 
 .tactical-radar-scan-box {
