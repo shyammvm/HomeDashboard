@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 
 import GoogleTrafficMap from './GoogleTrafficMap';
+import FastTypewriter from './FastTypewriter';
 import {
   fetchBangaloreFlights,
   fetchBangaloreCloudInfo,
@@ -1362,7 +1363,12 @@ export default function StarkTacticalDeck({
 
                     {(currentNews.paragraph || currentNews.snippet) && (
                       <p className="fw-news-snippet">
-                        {currentNews.paragraph || currentNews.snippet}
+                        <FastTypewriter
+                          key={`news-body-${newsIndex}-${(currentNews.paragraph || currentNews.snippet).slice(0, 20)}`}
+                          text={currentNews.paragraph || currentNews.snippet}
+                          speedMs={32}
+                          maxDuration={6500}
+                        />
                       </p>
                     )}
 

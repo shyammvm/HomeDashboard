@@ -9,6 +9,7 @@ import {
   Clock,
   Globe,
 } from 'lucide-react';
+import FastTypewriter from './FastTypewriter';
 
 export default function NewsTickerCard({ newsArticles = [], cycleSeconds = 35 }) {
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -182,7 +183,14 @@ export default function NewsTickerCard({ newsArticles = [], cycleSeconds = 35 })
           </a>
 
           {(current.paragraph || current.snippet) && (
-            <p className="news-snippet-large">{current.paragraph || current.snippet}</p>
+            <p className="news-snippet-large">
+              <FastTypewriter
+                key={`card-news-${currentIndex}-${(current.paragraph || current.snippet).slice(0, 20)}`}
+                text={current.paragraph || current.snippet}
+                speedMs={32}
+                maxDuration={6500}
+              />
+            </p>
           )}
         </div>
       </div>
