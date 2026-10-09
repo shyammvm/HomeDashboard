@@ -318,28 +318,24 @@ export default function App() {
           onToggleCommuteDirection={toggleCommuteDirection}
         />
 
-        {/* 3-Column Tactical Operations Deck: Schedule | Directives & Tasks | Treasury */}
-        <div className="dashboard-grid-main tactical-tri-grid">
-          {/* Column 1: Agenda & Protocols */}
-          <div className="dashboard-column col-schedule">
+        {/* Operations Command Deck: Left (Calendar + Expense) | Right (Tasks) */}
+        <div className="dashboard-operations-row">
+          {/* Left Column: Agenda (Next 5 Events) + Treasury (Below Calendar) */}
+          <div className="operations-col-left">
             <CalendarCard events={calendarEvents} isLive={isCalendarLive} />
-          </div>
-
-          {/* Column 2: Directives & Tasks */}
-          <div className="dashboard-column col-tasks">
-            <TasksCard
-              tasks={tasks}
-              isSynced={isTasksSynced}
-            />
-          </div>
-
-          {/* Column 3: Treasury & Burn Rate */}
-          <div className="dashboard-column col-finance">
             <ExpenseTrackerCard
               currency={config.currency}
               apiUrl={config.expenseTrackerApiUrl}
               secret={config.expenseTrackerSecret}
               refreshTrigger={expenseRefreshTrigger}
+            />
+          </div>
+
+          {/* Right Column: Directives & Tasks */}
+          <div className="operations-col-right">
+            <TasksCard
+              tasks={tasks}
+              isSynced={isTasksSynced}
             />
           </div>
         </div>

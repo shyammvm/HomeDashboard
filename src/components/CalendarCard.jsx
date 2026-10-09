@@ -38,17 +38,22 @@ export default function CalendarCard({ events = [], isLive = false }) {
   // Find the next upcoming event (or current active event for the banner)
   const bannerEvent = currentActiveEvent || currentAndFutureEvents[0];
 
-  // Exclude the banner event from the list below so it is only displayed once
+  // Exclude the banner event and limit upcoming events:
+  // If an active event is running in the banner, show next 5 upcoming in the list.
+  // If no event is currently running, the banner shows the next event, and the list shows the next 4 (total 5 upcoming events).
   const listEvents = useMemo(() => {
-    if (!bannerEvent) return currentAndFutureEvents;
-    return currentAndFutureEvents.filter((ev) => {
-      if (ev === bannerEvent) return false;
-      if (ev.id && bannerEvent.id && ev.id === bannerEvent.id) return false;
-      const evKey = `${ev.summary}-${new Date(ev.startDate).getTime()}`;
-      const bannerKey = `${bannerEvent.summary}-${new Date(bannerEvent.startDate).getTime()}`;
-      return evKey !== bannerKey;
-    });
-  }, [currentAndFutureEvents, bannerEvent]);
+    const events = !bannerEvent
+      ? currentAndFutureEvents
+      : currentAndFutureEvents.filter((ev) => {
+          if (ev === bannerEvent) return false;
+          if (ev.id && bannerEvent.id && ev.id === bannerEvent.id) return false;
+          const evKey = `${ev.summary}-${new Date(ev.startDate).getTime()}`;
+          const bannerKey = `${bannerEvent.summary}-${new Date(bannerEvent.startDate).getTime()}`;
+          return evKey !== bannerKey;
+        });
+    const maxCount = currentActiveEvent ? 5 : 4;
+    return events.slice(0, maxCount);
+  }, [currentAndFutureEvents, bannerEvent, currentActiveEvent]);
 
   return (
     <div className="dash-card calendar-card stark-hud-card" role="region" aria-label="Schedule">

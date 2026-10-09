@@ -978,7 +978,7 @@ export default function StarkTacticalDeck({
                     <GoogleTrafficMap
                       center={activeTrafficCenter}
                       rangeKm={trafficScaleKm}
-                      height="350px"
+                      height="535px"
                       interactive={true}
                       topOffset={52}
                       showScaleBar={true}

@@ -733,9 +733,9 @@ body {
   display: grid;
   grid-template-columns: 1.25fr 1fr;
   gap: 12px;
-  height: 255px;
-  min-height: 255px;
-  max-height: 255px;
+  height: 230px;
+  min-height: 230px;
+  max-height: 230px;
   flex-shrink: 0;
 }
 
@@ -1158,98 +1158,198 @@ body {
   display: inline-block;
 }
 
-/* Main Dashboard Tactical Grid - 2-Row Split for 1080x1920: Calendar & Tasks Top, Treasury Bottom */
-.dashboard-grid-main,
-.tactical-tri-grid {
+/* ==========================================================================
+   Dashboard Operations Command Deck (Engineered for 1080x1920 Vertical Screen)
+   Left Column: Agenda (Next 5 Events) + Treasury (Under Calendar)
+   Right Column: Directives & Tasks
+   ========================================================================== */
+.dashboard-operations-row {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  grid-template-rows: 1.15fr 1fr;
-  grid-template-areas:
-    "schedule tasks"
-    "finance finance";
   gap: 12px;
   flex: 1;
   min-height: 0;
   align-items: stretch;
 }
 
-.col-schedule {
-  grid-area: schedule;
-  min-height: 0;
+/* Left Column: Calendar on Top, Expense Below */
+.operations-col-left {
   display: flex;
   flex-direction: column;
-}
-
-.col-tasks {
-  grid-area: tasks;
+  gap: 12px;
   min-height: 0;
-  display: flex;
-  flex-direction: column;
-}
-
-.col-finance {
-  grid-area: finance;
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
-}
-
-.col-schedule .calendar-card,
-.col-tasks .tasks-card,
-.col-finance .expense-card {
   height: 100%;
-  display: flex;
-  flex-direction: column;
-  min-height: 0;
 }
 
-.col-schedule .event-list {
+.operations-col-left .calendar-card {
+  flex: 1.1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  padding: 12px 14px;
+}
+
+.operations-col-left .calendar-card .event-list {
   flex: 1;
   min-height: 0;
   max-height: none;
   overflow-y: auto;
+  gap: 6px;
 }
 
-.col-tasks .task-list {
-  flex: 1;
+.operations-col-left .calendar-card .event-item {
+  padding: 7px 10px;
+}
+
+.operations-col-left .calendar-card .calendar-hero-alert {
+  padding: 8px 12px;
+  margin-bottom: 8px;
+}
+
+.operations-col-left .calendar-card .calendar-hero-title {
+  font-size: 12.5px;
+  margin-bottom: 3px;
+}
+
+/* Expense Card Located Below Calendar in Left Column */
+.operations-col-left .expense-card {
+  flex: 0.95;
   min-height: 0;
-  max-height: none;
-  overflow-y: auto;
-}
-
-/* Expense Tracker Wide Split Layout for Row 2 */
-.expense-content-split {
-  display: grid;
-  grid-template-columns: 360px 1fr;
-  gap: 16px;
-  flex: 1;
-  min-height: 0;
-  align-items: stretch;
-}
-
-.expense-hero-col {
   display: flex;
   flex-direction: column;
-  justify-content: center;
-  min-height: 0;
+  padding: 12px 14px;
 }
 
-.expense-hero-col .expense-hero-card {
-  height: 100%;
+.operations-col-left .expense-content-split {
   display: flex;
   flex-direction: column;
-  justify-content: space-around;
-  margin-bottom: 0;
-}
-
-.expense-feed-col {
-  display: flex;
-  flex-direction: column;
-  min-height: 0;
   gap: 8px;
+  flex: 1;
+  min-height: 0;
 }
 
-.expense-feed-col .expense-items-scroll {
+.operations-col-left .expense-hero-col {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  flex-shrink: 0;
+}
+
+.operations-col-left .expense-hero-card {
+  margin-bottom: 0;
+  padding: 8px 12px;
+  border-radius: var(--radius-sm);
+  background: linear-gradient(135deg, rgba(251, 191, 36, 0.08) 0%, rgba(2, 7, 20, 0.6) 100%);
+  border: 1px solid rgba(251, 191, 36, 0.28);
+  border-left: 3px solid var(--stark-gold);
+}
+
+.operations-col-left .expense-hero-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 4px;
+}
+
+.operations-col-left .expense-hero-label {
+  font-size: 9.5px;
+  gap: 6px;
+}
+
+.operations-col-left .expense-hero-amount {
+  font-size: 22px;
+  font-weight: 800;
+  margin-bottom: 6px;
+  line-height: 1.1;
+  color: #ffffff;
+  text-shadow: 0 0 16px rgba(251, 191, 36, 0.35);
+}
+
+.operations-col-left .expense-hero-split-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-top: 6px;
+  border-top: 1px dashed rgba(251, 191, 36, 0.2);
+}
+
+.operations-col-left .expense-split-item {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 10px;
+}
+
+.operations-col-left .expense-split-tag {
+  font-size: 8.5px;
+  padding: 1px 5px;
+}
+
+.operations-col-left .expense-split-val {
+  font-size: 10.5px;
+}
+
+.operations-col-left .expense-feed-col {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  gap: 6px;
+}
+
+.operations-col-left .expense-tabs-bar {
+  margin-bottom: 0;
+  padding: 2px;
+  display: flex;
+  gap: 6px;
+}
+
+.operations-col-left .expense-tab-btn {
+  padding: 3px 8px;
+  font-size: 9.5px;
+}
+
+.operations-col-left .expense-items-scroll {
+  flex: 1;
+  min-height: 0;
+  max-height: none;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding-right: 4px;
+}
+
+.operations-col-left .expense-item-row {
+  padding: 6px 9px;
+}
+
+.operations-col-left .expense-merchant-title {
+  font-size: 11px;
+}
+
+.operations-col-left .expense-item-amount {
+  font-size: 12px;
+  font-weight: 700;
+}
+
+/* Right Column: Tasks & Directives */
+.operations-col-right {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  height: 100%;
+}
+
+.operations-col-right .tasks-card {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  padding: 12px 14px;
+}
+
+.operations-col-right .task-list {
   flex: 1;
   min-height: 0;
   max-height: none;
@@ -4140,11 +4240,11 @@ body {
 /* Full-Width Tactical Console Styles with Cool Stark HUD Border */
 .full-width-tactical-deck {
   width: 100%;
-  height: 415px;
-  min-height: 415px;
-  max-height: 415px;
+  height: 590px;
+  min-height: 590px;
+  max-height: 590px;
   flex-shrink: 0;
-  padding: 12px 16px;
+  padding: 10px 14px;
 }
 
 .full-width-tactical-deck.stark-tactical-frame {
@@ -4261,9 +4361,9 @@ body {
 }
 
 .full-width-tactical-deck .deck-3d-viewport {
-  height: 350px;
-  min-height: 350px;
-  max-height: 350px;
+  height: 535px;
+  min-height: 535px;
+  max-height: 535px;
 }
 
 .deck-tab-tag {
@@ -4276,7 +4376,7 @@ body {
 /* 1. Full-Width Airspace Radar Slide (Expanded Scale) */
 .fw-radar-content {
   display: grid;
-  grid-template-columns: 310px 1.15fr 1fr;
+  grid-template-columns: 390px 1.15fr 1fr;
   gap: 20px;
   align-items: center;
   height: 100%;
@@ -4284,8 +4384,8 @@ body {
 
 .fw-radar-canvas-box {
   position: relative;
-  width: 290px;
-  height: 290px;
+  width: 380px;
+  height: 380px;
   margin: 0 auto;
   display: flex;
   align-items: center;
@@ -4461,7 +4561,7 @@ body {
   display: flex;
   flex-direction: column;
   gap: 3px;
-  max-height: 180px;
+  max-height: 280px;
   overflow-y: auto;
 }
 
@@ -4526,8 +4626,8 @@ body {
 .fw-traffic-map-container {
   position: relative;
   width: 100%;
-  height: 350px;
-  min-height: 350px;
+  height: 535px;
+  min-height: 535px;
   border-radius: 6px;
   overflow: hidden;
   border: 1px solid rgba(0, 240, 255, 0.25);
@@ -4876,7 +4976,7 @@ body {
 /* 3. Full-Width Satellite Intel (News) Slide (Expanded Height & Oscillating) */
 .fw-news-content {
   display: grid;
-  grid-template-columns: 330px 1fr;
+  grid-template-columns: 380px 1fr;
   gap: 22px;
   align-items: stretch;
   height: 100%;
@@ -4885,8 +4985,8 @@ body {
 .fw-news-media-box {
   position: relative;
   width: 100%;
-  height: 310px;
-  max-height: 310px;
+  height: 100%;
+  max-height: 520px;
   border-radius: 6px;
   overflow: hidden;
   background: #040814;
