@@ -294,8 +294,13 @@ export default function StarkTacticalDeck({
       .map((f) => {
         const dist = calculateDistanceKm(activeRadarCenter.lat, activeRadarCenter.lon, f.lat, f.lon);
         const brg = calculateBearingDeg(activeRadarCenter.lat, activeRadarCenter.lon, f.lat, f.lon);
+        const isWb = Boolean(f.isWidebody) || f.categoryBadge === 'PAX-WB' || f.category === 'WIDEBODY';
+        const catColor = isWb ? '#ec4899' : (f.categoryColor || '#00f0ff');
         return {
           ...f,
+          isWidebody: isWb,
+          categoryBadge: isWb ? 'PAX-WB' : (f.categoryBadge || (f.category === 'MILITARY' ? 'ARMY' : (f.category === 'COMMERCIAL' ? 'PAX' : 'CIV'))),
+          categoryColor: catColor,
           distanceKm: Math.round(dist * 10) / 10,
           bearingDeg: brg,
         };
@@ -704,6 +709,12 @@ export default function StarkTacticalDeck({
         ctx.lineTo(px + vLen * Math.cos(headingRad), py + vLen * Math.sin(headingRad));
         ctx.stroke();
 
+        // B2. Center Position Target Core
+        ctx.fillStyle = isSel ? '#00f0ff' : flightColor;
+        ctx.beginPath();
+        ctx.arc(px, py, flight.isWidebody ? 2.2 : 1.7, 0, Math.PI * 2);
+        ctx.fill();
+
         // C. Silhouette glyph
         ctx.save();
         ctx.translate(px, py);
@@ -711,6 +722,8 @@ export default function StarkTacticalDeck({
         ctx.fillStyle = isSel ? '#00f0ff' : flightColor;
         ctx.strokeStyle = '#020617';
         ctx.lineWidth = 0.8;
+        ctx.shadowColor = isSel ? 'rgba(0, 240, 255, 0.85)' : `${flightColor}aa`;
+        ctx.shadowBlur = isSel ? 8 : 4;
 
         if (flight.category === 'MILITARY') {
           ctx.beginPath();
@@ -763,7 +776,45 @@ export default function StarkTacticalDeck({
           ctx.closePath();
           ctx.fill();
           ctx.stroke();
+        } else if (flight.category === 'PRIVATE') {
+          ctx.beginPath();
+          ctx.moveTo(0, -6);
+          ctx.lineTo(4.5, 2.5);
+          ctx.lineTo(1.5, 2);
+          ctx.lineTo(1.5, 5);
+          ctx.lineTo(0, 4);
+          ctx.lineTo(-1.5, 5);
+          ctx.lineTo(-1.5, 2);
+          ctx.lineTo(-4.5, 2.5);
+          ctx.closePath();
+          ctx.fill();
+          ctx.stroke();
+        } else if (flight.isWidebody || flight.category === 'WIDEBODY' || flight.categoryBadge === 'PAX-WB') {
+          // Widebody Heavy Long-Haul Jet (B777 / A350 / B787 / A380): larger fuselage, wide swept wings, twin stabilizers
+          ctx.beginPath();
+          ctx.moveTo(0, -8);
+          ctx.lineTo(1.6, -5.5);
+          ctx.lineTo(2, 0);
+          ctx.lineTo(8, 3.8);
+          ctx.lineTo(7.5, 5);
+          ctx.lineTo(2.3, 3.2);
+          ctx.lineTo(2.3, 7);
+          ctx.lineTo(4.2, 8.2);
+          ctx.lineTo(3.8, 9.2);
+          ctx.lineTo(0, 7.8);
+          ctx.lineTo(-3.8, 9.2);
+          ctx.lineTo(-4.2, 8.2);
+          ctx.lineTo(-2.3, 7);
+          ctx.lineTo(-2.3, 3.2);
+          ctx.lineTo(-7.5, 5);
+          ctx.lineTo(-8, 3.8);
+          ctx.lineTo(-2, 0);
+          ctx.lineTo(-1.6, -5.5);
+          ctx.closePath();
+          ctx.fill();
+          ctx.stroke();
         } else {
+          // Commercial Narrowbody (A320 / B737)
           ctx.beginPath();
           ctx.moveTo(0, -5.5);
           ctx.lineTo(5, 4.5);
@@ -777,6 +828,7 @@ export default function StarkTacticalDeck({
           ctx.fill();
           ctx.stroke();
         }
+        ctx.shadowBlur = 0;
         ctx.restore();
 
         // D. Callsign chip: render only for airborne flights or when clicked/selected to prevent airport stacking clutter
@@ -784,23 +836,34 @@ export default function StarkTacticalDeck({
         if (callsignStr && (!isOnGround || isSel)) {
           ctx.font = 'bold 7.5px var(--font-mono, monospace)';
           const textW = ctx.measureText(callsignStr).width;
-          const chipW = Math.max(26, textW + 6);
-          const chipH = 11;
+          const chipW = Math.max(30, textW + 15);
+          const chipH = 12;
           const isAlt = fIdx % 2 === 1;
-          const chipX = isAlt ? px - chipW - 5 : px + 5;
-          const chipY = py - 5;
+          const chipX = isAlt ? px - chipW - 6 : px + 6;
+          const chipY = py - 6;
 
-          ctx.fillStyle = isSel ? 'rgba(8, 47, 73, 0.95)' : 'rgba(2, 6, 23, 0.85)';
-          ctx.strokeStyle = isSel ? '#00f0ff' : `${flightColor}77`;
-          ctx.lineWidth = 0.8;
+          // High-tech chip badge with category color border
+          ctx.fillStyle = isSel ? 'rgba(8, 47, 73, 0.95)' : 'rgba(2, 6, 23, 0.90)';
+          ctx.strokeStyle = isSel ? '#00f0ff' : `${flightColor}aa`;
+          ctx.lineWidth = 0.9;
           ctx.beginPath();
           ctx.roundRect(chipX, chipY, chipW, chipH, 2.5);
           ctx.fill();
           ctx.stroke();
 
-          ctx.fillStyle = isSel ? '#00f0ff' : '#f8fafc';
-          ctx.textAlign = 'center';
-          ctx.fillText(callsignStr, chipX + chipW / 2, chipY + 8.5);
+          // Left indicator dot (mirrors tape-airline-dot in table)
+          ctx.fillStyle = isSel ? '#00f0ff' : flightColor;
+          ctx.shadowColor = flightColor;
+          ctx.shadowBlur = 4;
+          ctx.beginPath();
+          ctx.arc(chipX + 5, chipY + chipH / 2, 2.2, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.shadowBlur = 0;
+
+          // Callsign text colored in flightColor (mirrors tape-callsign in table)
+          ctx.fillStyle = isSel ? '#00f0ff' : flightColor;
+          ctx.textAlign = 'left';
+          ctx.fillText(callsignStr, chipX + 10.5, chipY + 8.5);
         }
 
         ctx.restore();
@@ -1068,7 +1131,7 @@ export default function StarkTacticalDeck({
                           const shortModel = getShortAircraftModel(f);
                           const companyName = f.airline || 'Civil Aircraft';
                           const flightId = f.flightNum || f.callsign || 'UNK';
-                          const classBadge = f.categoryBadge || (f.category === 'MILITARY' ? 'ARMY' : (f.category === 'COMMERCIAL' ? 'PAX' : 'CIV'));
+                          const classBadge = f.categoryBadge || (f.category === 'MILITARY' ? 'ARMY' : (f.isWidebody ? 'PAX-WB' : (f.category === 'COMMERCIAL' ? 'PAX' : 'CIV')));
                           const altText = f.onGround
                             ? 'GND'
                             : (f.flightLevel || (f.altitudeFt >= 10000 ? `FL${Math.round(f.altitudeFt / 100)}` : `${f.altitudeFt || 0}ft`));

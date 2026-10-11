@@ -52,6 +52,13 @@ export const AIRLINE_REGISTRY = {
   CXA: { name: 'Cathay Pacific', iata: 'CX', color: '#0d9488', bg: 'rgba(13, 148, 136, 0.16)', type: 'COMMERCIAL', model: 'Airbus A350-900', widebody: true },
   MAS: { name: 'Malaysia Airlines', iata: 'MH', color: '#2563eb', bg: 'rgba(37, 99, 235, 0.16)', type: 'COMMERCIAL', model: 'Airbus A330-300', widebody: true },
   THA: { name: 'Thai Airways', iata: 'TG', color: '#7c3aed', bg: 'rgba(124, 58, 237, 0.16)', type: 'COMMERCIAL', model: 'Boeing 777-200ER', widebody: true },
+  DLH: { name: 'Lufthansa', iata: 'LH', color: '#1e3a8a', bg: 'rgba(30, 58, 138, 0.16)', type: 'COMMERCIAL', model: 'Airbus A350-900', widebody: true },
+  JAL: { name: 'Japan Airlines', iata: 'JL', color: '#dc2626', bg: 'rgba(220, 38, 38, 0.16)', type: 'COMMERCIAL', model: 'Boeing 787-8', widebody: true },
+  QFA: { name: 'Qantas', iata: 'QF', color: '#e11d48', bg: 'rgba(225, 29, 72, 0.16)', type: 'COMMERCIAL', model: 'Airbus A330-200', widebody: true },
+  SVA: { name: 'Saudia', iata: 'SV', color: '#15803d', bg: 'rgba(21, 128, 61, 0.16)', type: 'COMMERCIAL', model: 'Boeing 777-300ER', widebody: true },
+  OMA: { name: 'Oman Air', iata: 'WY', color: '#0284c7', bg: 'rgba(2, 132, 199, 0.16)', type: 'COMMERCIAL', model: 'Boeing 787-9', widebody: true },
+  GFA: { name: 'Gulf Air', iata: 'GF', color: '#b45309', bg: 'rgba(180, 83, 9, 0.16)', type: 'COMMERCIAL', model: 'Boeing 787-9', widebody: true },
+  VIR: { name: 'Virgin Atlantic', iata: 'VS', color: '#dc2626', bg: 'rgba(220, 38, 38, 0.16)', type: 'COMMERCIAL', model: 'Boeing 787-9', widebody: true },
 
   // Air Cargo & Freight
   BPA: { name: 'Blue Dart Aviation', iata: 'BZ', color: '#ea580c', bg: 'rgba(234, 88, 12, 0.16)', type: 'CARGO', model: 'Boeing 757-200F Freighter' },
@@ -415,15 +422,25 @@ export function classifyAircraft({ callsign, country, altFt, speedKts, vRateFpm,
   }
 
   // 6. Commercial Passenger (Widebody vs Narrowbody)
+  const WIDEBODY_MODELS = new Set([
+    'B77W', 'B772', 'B773', 'B77L', 'B778', 'B779', 'B777',
+    'B788', 'B789', 'B78X', 'B787',
+    'A359', 'A35K', 'A350',
+    'A332', 'A333', 'A338', 'A339', 'A330',
+    'A342', 'A343', 'A345', 'A346', 'A340',
+    'A388', 'A380',
+    'B744', 'B748', 'B741', 'B742', 'B743', 'B747',
+    'B762', 'B763', 'B764', 'B767',
+    'MD11', 'DC10',
+  ]);
+
   const isWidebody =
     regEntry?.widebody ||
-    ['UAE', 'SIA', 'QTR', 'ETD', 'BAW', 'LHA', 'AFR', 'KLM', 'CXA', 'MAS', 'THA', 'JAL', 'QFA'].includes(prefix3) ||
-    ['EK', 'SQ', 'QR', 'EY', 'BA', 'LH', 'AF', 'KL', 'CX', 'MH', 'TG'].includes(prefix2) ||
-    mc === 'B77W' ||
-    mc === 'A359' ||
-    mc === 'B789' ||
-    mc === 'A388' ||
-    mc === 'B748' ||
+    WIDEBODY_MODELS.has(mc) ||
+    ['UAE', 'SIA', 'QTR', 'ETD', 'BAW', 'LHA', 'AFR', 'KLM', 'CXA', 'MAS', 'THA', 'JAL', 'QFA', 'SVA', 'OMA', 'GFA', 'VIR', 'DLH'].includes(prefix3) ||
+    ['EK', 'SQ', 'QR', 'EY', 'BA', 'LH', 'AF', 'KL', 'CX', 'MH', 'TG', 'JL', 'QF', 'SV', 'WY', 'GF', 'VS'].includes(prefix2) ||
+    /777|787|350|330|380|747|A359|B77W|DREAMLINER/i.test(explicitModel || '') ||
+    /777|787|350|330|380|747|A359|B77W/i.test(record?.desc || '') ||
     (altFt > 32000 && speedKts > 450);
 
   let passengerModel = explicitModel || regEntry?.model;
@@ -435,15 +452,16 @@ export function classifyAircraft({ callsign, country, altFt, speedKts, vRateFpm,
   }
 
   return {
-    category: 'COMMERCIAL',
-    categoryLabel: isWidebody ? 'Commercial (Widebody)' : 'Commercial (Narrowbody)',
+    category: isWidebody ? 'WIDEBODY' : 'COMMERCIAL',
+    categoryLabel: isWidebody ? 'Commercial (Widebody Heavy)' : 'Commercial (Narrowbody)',
     categoryBadge: isWidebody ? 'PAX-WB' : 'PAX',
-    categoryColor: '#00f0ff',
-    categoryBg: 'rgba(0, 240, 255, 0.16)',
+    categoryColor: isWidebody ? '#ec4899' : '#00f0ff',
+    categoryBg: isWidebody ? 'rgba(236, 72, 153, 0.16)' : 'rgba(0, 240, 255, 0.16)',
     aircraftType: passengerModel,
     aircraftClass: isWidebody ? 'Widebody Commercial Jet' : 'Narrowbody Commercial Jet',
     wakeCategory: isWidebody ? 'Heavy' : 'Medium',
     mission: isWidebody ? 'International Long-Haul Passenger' : 'Domestic Scheduled Passenger',
+    isWidebody: Boolean(isWidebody),
   };
 }
 
@@ -503,7 +521,8 @@ export function getShortAircraftModel(f) {
   if (f.category === 'CARGO') return 'CARGO';
 
   if (mc && mc.length <= 6) return mc;
-  return f.category === 'COMMERCIAL' ? 'A320' : (f.categoryBadge || 'AIRCRAFT');
+  if (f.isWidebody || f.category === 'WIDEBODY' || f.categoryBadge === 'PAX-WB') return 'B777';
+  return (f.category === 'COMMERCIAL') ? 'A320' : (f.categoryBadge || 'AIRCRAFT');
 }
 
 /**
@@ -683,6 +702,7 @@ export function processFlightState(state, center) {
     categoryBadge: classification.categoryBadge,
     categoryColor: classification.categoryColor,
     categoryBg: classification.categoryBg,
+    isWidebody: classification.isWidebody,
     aircraftType: classification.aircraftType,
     aircraftClass: classification.aircraftClass,
     wakeCategory: classification.wakeCategory,
@@ -777,6 +797,7 @@ export function processAdsbRecord(record, center) {
     categoryBadge: classification.categoryBadge,
     categoryColor: classification.categoryColor,
     categoryBg: classification.categoryBg,
+    isWidebody: classification.isWidebody,
     aircraftType: classification.aircraftType,
     aircraftClass: classification.aircraftClass,
     wakeCategory: classification.wakeCategory,
@@ -908,6 +929,20 @@ export function generateRealisticBangaloreFlights(center = RADAR_CENTERS.VOBL, m
       heading: 8,
       cycleSec: 480,
       squawk: '2011',
+    },
+    {
+      icao24: '76cc05',
+      callsign: 'SIA318  ',
+      country: 'Singapore',
+      // Singapore Airlines Airbus A350-900 widebody inbound from Singapore Changi (SIN) to BLR
+      startLat: 12.82, startLon: 77.92,
+      endLat: 13.18, endLon: 77.72,
+      speedKts: 260,
+      altFt: 8500,
+      vRateFpm: -700,
+      heading: 335,
+      cycleSec: 460,
+      squawk: '6214',
     },
   ];
 
