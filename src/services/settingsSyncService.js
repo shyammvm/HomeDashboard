@@ -33,9 +33,6 @@ export const DEFAULT_CONFIG = {
   remoteRefreshTrigger: 0,
 };
 
-// Cloud fallback sync endpoint (ensures instant zero-setup sync on GitHub Pages even before updating Google Apps Script)
-const CLOUD_FALLBACK_ENDPOINT = 'https://api.restful-api.dev/objects/ff808181a09d98f701a11ad0d6bf1f14';
-
 // In-memory BroadcastChannel for multi-tab/same-device zero-latency sync
 let broadcastChannel = null;
 try {
@@ -56,9 +53,12 @@ export function getInitialSettings() {
       if (saved) {
         const parsed = JSON.parse(saved);
         if (parsed.city === 'Chennai' || parsed.city === 'Your Location') parsed.city = DEFAULT_CONFIG.city;
-        if (parsed.officeName === 'Work / EcoWorld') parsed.officeName = DEFAULT_CONFIG.officeName;
-        // If dashboard-settings.json has an updated timestamp that is newer than localStorage, respect dashboard-settings.json
-        if ((Number(DEFAULT_CONFIG.updatedAt) || 0) > (Number(parsed.updatedAt) || 0)) {
+        if (parsed.officeName === 'Work / EcoWorld' || !parsed.officeName) parsed.officeName = DEFAULT_CONFIG.officeName;
+        if (parsed.officeAddress === 'EcoWorld, Bellandur') parsed.officeAddress = DEFAULT_CONFIG.officeAddress;
+        if (parsed.homeAddress === 'Whitefield, Bangalore') parsed.homeAddress = DEFAULT_CONFIG.homeAddress;
+
+        // If dashboard-settings.json has an updated timestamp that is >= localStorage, respect dashboard-settings.json
+        if ((Number(DEFAULT_CONFIG.updatedAt) || 0) >= (Number(parsed.updatedAt) || 0)) {
           const merged = { ...parsed, ...DEFAULT_CONFIG };
           try {
             localStorage.setItem(STORAGE_KEY, JSON.stringify(merged));
@@ -131,44 +131,18 @@ async function fetchFromGoogleScript(googleSyncUrl) {
 }
 
 /**
- * Fetch from Cloud Fallback endpoint (zero-config, high availability)
- */
-async function fetchFromCloudFallback() {
-  try {
-    const res = await fetch(CLOUD_FALLBACK_ENDPOINT, {
-      headers: { 'Accept': 'application/json' },
-      signal: AbortSignal.timeout(4000),
-    });
-    if (res.ok) {
-      const data = await res.json();
-      if (data && data.data && typeof data.data === 'object') {
-        return {
-          settings: data.data,
-          updatedAt: Number(data.data.updatedAt || data.updatedAt || 0),
-          source: 'cloud-store',
-        };
-      }
-    }
-  } catch {
-    // Ignore cloud fallback fetch error
-  }
-  return null;
-}
-
-/**
- * Pull the latest remote settings from all available sources
- * Returns the newest config object if newer than local, or null if up-to-date
+ * Pull the latest remote settings from available sources (local backend & Google Apps Script)
+ * Returns the newest config object only if strictly newer than local and has changes
  */
 export async function fetchRemoteSettings(currentLocalConfig = null) {
   const syncUrl = DASHBOARD_CONFIG.googleSyncUrl;
   const localConfig = currentLocalConfig || getInitialSettings();
   const currentUpdatedAt = Number(localConfig.updatedAt || 0);
 
-  // Poll all candidate sources in parallel
+  // Poll valid sync candidates in parallel
   const results = await Promise.allSettled([
     fetchFromLocalBackend(),
     fetchFromGoogleScript(syncUrl),
-    fetchFromCloudFallback(),
   ]);
 
   let bestResult = null;
@@ -182,16 +156,22 @@ export async function fetchRemoteSettings(currentLocalConfig = null) {
   }
 
   if (bestResult && bestResult.settings) {
-    // Validate if the remote settings are newer or have distinct values
+    // Strictly require remote settings to be newer than current local settings
     const isNewer = bestResult.updatedAt > currentUpdatedAt;
     const isDifferent = hasConfigChanges(localConfig, bestResult.settings);
 
-    if (isNewer || isDifferent) {
+    if (isNewer && isDifferent) {
       const merged = {
         ...DEFAULT_CONFIG,
         ...bestResult.settings,
         updatedAt: bestResult.updatedAt || Date.now(),
       };
+
+      // Sanitize legacy mock values
+      if (merged.officeName === 'Work / EcoWorld' || !merged.officeName) merged.officeName = DEFAULT_CONFIG.officeName;
+      if (merged.officeAddress === 'EcoWorld, Bellandur') merged.officeAddress = DEFAULT_CONFIG.officeAddress;
+      if (merged.homeAddress === 'Whitefield, Bangalore') merged.homeAddress = DEFAULT_CONFIG.homeAddress;
+
       // Cache locally
       try {
         if (typeof localStorage !== 'undefined') {
@@ -300,20 +280,6 @@ export async function saveAndBroadcastSettings(newSettings, updatedBy = 'Phone /
       }).catch(() => null)
     );
   }
-
-  // 3C. Cloud Fallback endpoint (zero-setup PUT)
-  syncPromises.push(
-    fetch(CLOUD_FALLBACK_ENDPOINT, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        name: 'AetherSettings',
-        data: fullConfig,
-        updatedAt: now,
-      }),
-      signal: AbortSignal.timeout(5000),
-    }).catch(() => null)
-  );
 
   const results = await Promise.allSettled(syncPromises);
   const successCount = results.filter(r => r.status === 'fulfilled' && r.value !== null).length;
