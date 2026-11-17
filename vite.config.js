@@ -249,15 +249,18 @@ function apiProxyPlugin() {
             const pmUrl = urlObj.searchParams.get('url') || 'https://pmmeter.onrender.com/alexa';
             try {
               const fetchRes = await fetch(pmUrl, {
-                headers: { 'Accept': 'application/json' },
+                headers: { 'Accept': 'application/json', 'Cache-Control': 'no-cache' },
                 signal: AbortSignal.timeout(6000),
+                cache: 'no-store',
               });
               const text = await fetchRes.text();
               res.setHeader('Content-Type', 'application/json');
+              res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
               return res.end(text);
             } catch (err) {
               res.statusCode = 502;
               res.setHeader('Content-Type', 'application/json');
+              res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
               return res.end(JSON.stringify({ error: 'Failed to fetch PM meter', details: err.message }));
             }
           }

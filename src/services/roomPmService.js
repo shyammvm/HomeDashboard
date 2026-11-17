@@ -93,12 +93,17 @@ export function getCachedRoomPm() {
 
 export async function fetchRoomPm(customUrl) {
   const targetUrl = customUrl || DEFAULT_PM_URL;
+  const now = Date.now();
 
   // 1. Try local/backend API proxy first (avoids CORS in development & server deployment)
   try {
-    const proxyRes = await fetch(`/api/room-pm?url=${encodeURIComponent(targetUrl)}`, {
+    const proxyRes = await fetch(`/api/room-pm?url=${encodeURIComponent(targetUrl)}&_t=${now}`, {
       signal: AbortSignal.timeout(6000),
-      headers: { Accept: 'application/json' },
+      cache: 'no-store',
+      headers: {
+        Accept: 'application/json',
+        'Cache-Control': 'no-cache, no-store',
+      },
     });
     if (proxyRes.ok) {
       const json = await proxyRes.json();
@@ -114,9 +119,14 @@ export async function fetchRoomPm(customUrl) {
 
   // 2. Try direct fetch (if CORS allowed)
   try {
-    const directRes = await fetch(targetUrl, {
+    const directUrl = `${targetUrl}${targetUrl.includes('?') ? '&' : '?'}_t=${now}`;
+    const directRes = await fetch(directUrl, {
       method: 'GET',
-      headers: { Accept: 'application/json' },
+      cache: 'no-store',
+      headers: {
+        Accept: 'application/json',
+        'Cache-Control': 'no-cache, no-store',
+      },
       signal: AbortSignal.timeout(5000),
     });
     if (directRes.ok) {
@@ -133,9 +143,10 @@ export async function fetchRoomPm(customUrl) {
 
   // 3. Fallback CORS proxy for static hosting (e.g. GitHub Pages)
   try {
-    const corsProxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(targetUrl)}`;
+    const corsProxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(targetUrl + (targetUrl.includes('?') ? '&' : '?') + '_t=' + now)}&_nocache=${now}`;
     const corsRes = await fetch(corsProxyUrl, {
       signal: AbortSignal.timeout(7000),
+      cache: 'no-store',
     });
     if (corsRes.ok) {
       const text = await corsRes.text();

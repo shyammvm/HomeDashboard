@@ -262,13 +262,16 @@ app.get('/api/room-pm', async (req, res) => {
   const pmUrl = req.query.url || 'https://pmmeter.onrender.com/alexa';
   try {
     const fetchRes = await fetch(pmUrl, {
-      headers: { 'Accept': 'application/json' },
+      headers: { 'Accept': 'application/json', 'Cache-Control': 'no-cache' },
       signal: AbortSignal.timeout(6000),
+      cache: 'no-store',
     });
     const text = await fetchRes.text();
     res.setHeader('Content-Type', 'application/json');
+    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
     return res.end(text);
   } catch (err) {
+    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
     return res.status(502).json({ error: 'Failed to fetch PM meter', details: err.message });
   }
 });
