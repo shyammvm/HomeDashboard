@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { X, Save, RotateCw, Globe, Receipt, User, Rss, Clock, Navigation, Home, Briefcase, Moon, Shield, Smartphone, QrCode } from 'lucide-react';
+import { X, Save, RotateCw, Globe, Receipt, User, Rss, Clock, Navigation, Home, Briefcase, Moon, Shield, ShieldCheck, Smartphone, QrCode } from 'lucide-react';
 import { POPULAR_OFFICE_PRESETS, parseCoordinateString } from '../services/commuteService';
 
 export default function SettingsModal({
@@ -74,6 +74,9 @@ export default function SettingsModal({
   const [expenseTrackerApiUrl, setExpenseTrackerApiUrl] = useState(
     config.expenseTrackerApiUrl || 'https://smartexpensetracker-vtkb.onrender.com'
   );
+  const [pmMeterUrl, setPmMeterUrl] = useState(
+    config.pmMeterUrl || 'https://pmmeter.onrender.com/alexa'
+  );
   const [rssUrl, setRssUrl] = useState(config.rssUrl || 'https://feeds.bbci.co.uk/news/world/rss.xml');
   const [newsCycleSeconds, setNewsCycleSeconds] = useState(config.newsCycleSeconds || 35);
   const [rotation, setRotation] = useState(config.rotation || 0);
@@ -93,6 +96,7 @@ export default function SettingsModal({
       userName,
       currency,
       expenseTrackerApiUrl,
+      pmMeterUrl,
       rssUrl,
       newsCycleSeconds: Number(newsCycleSeconds) || 35,
       rotation: Number(rotation),
@@ -476,6 +480,22 @@ export default function SettingsModal({
                 placeholder="https://smartexpensetracker-vtkb.onrender.com"
               />
             </div>
+          </div>
+
+          {/* Room PM 2.5 Meter URL */}
+          <div className="setting-field">
+            <label className="setting-label" htmlFor="cfg-pm-url">
+              <ShieldCheck size={13} style={{ display: 'inline', marginRight: 4 }} />
+              Room PM 2.5 Meter API URL (Air Purifier)
+            </label>
+            <input
+              id="cfg-pm-url"
+              type="url"
+              className="setting-input"
+              value={pmMeterUrl}
+              onChange={(e) => setPmMeterUrl(e.target.value)}
+              placeholder="https://pmmeter.onrender.com/alexa"
+            />
           </div>
 
           {/* RSS Feed URL */}

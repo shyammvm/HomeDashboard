@@ -621,31 +621,16 @@ body {
   font-size: 9.5px;
 }
 
-.telemetry-pill.world-clock-stacked-pill {
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-  background: rgba(2, 8, 20, 0.78);
-  border: 1px solid rgba(0, 240, 255, 0.25);
-  padding: 3px 8px;
-  border-radius: 4px;
-}
-
-.world-clock-stacked-pill .world-icon {
-  color: var(--stark-cyan);
-  flex-shrink: 0;
-}
-
 .clock-stack-column {
   display: flex;
   flex-direction: column;
-  gap: 1.5px;
+  gap: 2px;
 }
 
 .clock-stack-row {
   display: flex;
   align-items: center;
-  gap: 5px;
+  gap: 10px;
   line-height: 1;
 }
 
@@ -659,7 +644,9 @@ body {
   font-size: 8px;
   font-weight: 700;
   letter-spacing: 0.5px;
-  min-width: 28px;
+  width: 38px;
+  flex-shrink: 0;
+  text-align: left;
   line-height: 1;
 }
 
@@ -667,8 +654,19 @@ body {
   color: #38bdf8;
 }
 
+.pill-mini-tag.oslo-tag {
+  color: #34d399;
+}
+
 .pill-mini-tag.us-tag {
   color: var(--stark-gold);
+}
+
+.pill-mini-val-wrap {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  line-height: 1;
 }
 
 .pill-mini-val {
@@ -678,13 +676,13 @@ body {
   color: #f1f5f9;
   letter-spacing: 0.3px;
   line-height: 1;
+  font-variant-numeric: tabular-nums;
 }
 
 .clock-stack-row .pill-zone-hint {
   font-size: 8px;
   color: var(--text-dim);
   opacity: 0.6;
-  margin-left: 1px;
   transition: opacity 0.2s ease, transform 0.2s ease;
 }
 
@@ -881,8 +879,50 @@ body {
   display: flex;
   align-items: baseline;
   gap: 6px;
-  margin: 10px 0 6px;
+  margin: 0;
   text-shadow: 0 0 25px rgba(0, 240, 255, 0.45);
+}
+
+.clock-main-telemetry-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin: 6px 0 4px;
+}
+
+.chrono-world-clock-box {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 6px 10px;
+  background: rgba(2, 8, 20, 0.78);
+  border: 1px solid rgba(0, 240, 255, 0.22);
+  border-radius: var(--radius-sm);
+  box-shadow: inset 0 0 12px rgba(0, 240, 255, 0.04);
+  align-self: center;
+  flex-shrink: 0;
+}
+
+.chrono-world-header {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding-bottom: 3px;
+  border-bottom: 1px solid rgba(0, 240, 255, 0.12);
+  line-height: 1;
+}
+
+.chrono-world-header .world-globe-icon {
+  color: var(--stark-cyan);
+}
+
+.chrono-world-title {
+  font-family: var(--font-mono);
+  font-size: 7.5px;
+  font-weight: 700;
+  letter-spacing: 0.8px;
+  color: var(--text-dim);
 }
 
 .time-digits {
@@ -1055,7 +1095,14 @@ body {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin: 2px 0 4px 0;
+  margin: 2px 0 6px 0;
+  gap: 12px;
+}
+
+.temp-main-col {
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
 }
 
 .weather-big-temp.stark-temp {
@@ -1082,6 +1129,71 @@ body {
   margin-top: 1px;
 }
 
+/* Room PM 2.5 Callout (Right of temperature) */
+.room-pm-weather-callout {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 4px 10px;
+  border-radius: var(--radius-sm);
+  border: 1px solid rgba(0, 240, 255, 0.2);
+  background: rgba(2, 8, 20, 0.75);
+  box-shadow: inset 0 0 12px rgba(0, 240, 255, 0.04);
+  align-self: center;
+  margin-right: auto;
+  min-width: 0;
+}
+
+.room-pm-callout-header {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  line-height: 1;
+}
+
+.room-pm-callout-title {
+  font-family: var(--font-mono);
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  color: var(--text-dim);
+}
+
+.room-pm-status-pill {
+  font-family: var(--font-mono);
+  font-size: 7.5px;
+  font-weight: 700;
+  padding: 1px 4px;
+  border-radius: 3px;
+  border: 1px solid;
+  line-height: 1;
+  letter-spacing: 0.3px;
+}
+
+.room-pm-callout-val-row {
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+  margin-top: 2px;
+  line-height: 1;
+}
+
+.room-pm-callout-val {
+  font-family: var(--font-mono);
+  font-size: 19px;
+  font-weight: 800;
+  letter-spacing: -0.5px;
+  line-height: 1;
+}
+
+.room-pm-callout-unit {
+  font-family: var(--font-mono);
+  font-size: 8.5px;
+  color: var(--text-dim);
+  font-weight: 600;
+  letter-spacing: 0.2px;
+}
+
 .weather-icon-hud-container {
   padding: 6px;
   background: rgba(0, 240, 255, 0.06);
@@ -1091,6 +1203,7 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
+  flex-shrink: 0;
 }
 
 .weather-stats-grid.stark-stats-grid {

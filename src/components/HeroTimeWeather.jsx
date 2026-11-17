@@ -15,6 +15,8 @@ import {
   Thermometer,
   Activity,
   SunMedium,
+  ShieldCheck,
+  Globe,
 } from 'lucide-react';
 
 const ICON_MAP = {
@@ -34,8 +36,25 @@ function DynamicWeatherIcon({ iconName, size = 32, color = 'var(--accent-cyan)' 
   return <IconComponent size={size} color={color} />;
 }
 
-export default function HeroTimeWeather({ weatherData, userName = 'Shyam' }) {
+export default function HeroTimeWeather({ weatherData, userName = 'Shyam', roomPmData }) {
   const [time, setTime] = useState(new Date());
+  const [usZone, setUsZone] = useState(() => {
+    try {
+      return localStorage.getItem('aether_us_timezone') || 'ET';
+    } catch {
+      return 'ET';
+    }
+  });
+
+  const handleToggleUsZone = () => {
+    setUsZone((prev) => {
+      const next = prev === 'ET' ? 'PT' : 'ET';
+      try {
+        localStorage.setItem('aether_us_timezone', next);
+      } catch { }
+      return next;
+    });
+  };
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -70,6 +89,42 @@ export default function HeroTimeWeather({ weatherData, userName = 'Shyam' }) {
     year: 'numeric',
   });
 
+  // World Clocks Precision Telemetry (UK, Oslo, US)
+  let ukTime = '--:--:--';
+  let osloTime = '--:--:--';
+  let usTime = '--:--:--';
+
+  try {
+    ukTime = time.toLocaleTimeString('en-GB', {
+      timeZone: 'Europe/London',
+      hour12: false,
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+    });
+  } catch { }
+
+  try {
+    osloTime = time.toLocaleTimeString('en-GB', {
+      timeZone: 'Europe/Oslo',
+      hour12: false,
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+    });
+  } catch { }
+
+  try {
+    const targetUsTz = usZone === 'PT' ? 'America/Los_Angeles' : 'America/New_York';
+    usTime = time.toLocaleTimeString('en-GB', {
+      timeZone: targetUsTz,
+      hour12: false,
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+    });
+  } catch { }
+
   return (
     <section className="hero-time-row stark-hero-row" aria-label="Temporal & Atmospheric Telemetry">
       {/* Clock Card // Precision Chrono Telemetry */}
@@ -87,11 +142,47 @@ export default function HeroTimeWeather({ weatherData, userName = 'Shyam' }) {
             <span className="stark-tag-code ml-auto">[NOMINAL]</span>
           </div>
 
-          <div className="digital-time stark-digital-time">
-            <span className="time-digits">{hours12}:{minutes}</span>
-            <div className="time-micro-stack">
-              <span className="digital-seconds stark-seconds">:{seconds}</span>
-              <span className="digital-ampm stark-ampm">{ampm}</span>
+          <div className="clock-main-telemetry-row">
+            <div className="digital-time stark-digital-time">
+              <span className="time-digits">{hours12}:{minutes}</span>
+              <div className="time-micro-stack">
+                <span className="digital-seconds stark-seconds">:{seconds}</span>
+                <span className="digital-ampm stark-ampm">{ampm}</span>
+              </div>
+            </div>
+
+            {/* World Time Telemetry Stack (UK, OSLO, US) */}
+            <div className="chrono-world-clock-box" title="Global Precision Chronometers: UK (London), Oslo (Norway) & US">
+              <div className="chrono-world-header">
+                <Globe size={11} className="world-globe-icon" />
+                <span className="chrono-world-title">WORLD TIME</span>
+              </div>
+              <div className="clock-stack-column">
+                <div className="clock-stack-row uk-row" title="United Kingdom / London Time (Europe/London)">
+                  <span className="pill-mini-tag uk-tag">UK</span>
+                  <span className="pill-mini-val">{ukTime}</span>
+                </div>
+                <div className="clock-stack-row oslo-row" title="Norway / Oslo Time (Europe/Oslo)">
+                  <span className="pill-mini-tag oslo-tag">OSLO</span>
+                  <span className="pill-mini-val">{osloTime}</span>
+                </div>
+                <div
+                  className="clock-stack-row us-row"
+                  onClick={handleToggleUsZone}
+                  title={`US ${usZone === 'ET' ? 'Eastern (New York)' : 'Pacific (California)'} Time — Click to toggle ET / PT`}
+                  role="button"
+                  tabIndex={0}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') handleToggleUsZone();
+                  }}
+                >
+                  <span className="pill-mini-tag us-tag">US {usZone}</span>
+                  <span className="pill-mini-val-wrap">
+                    <span className="pill-mini-val">{usTime}</span>
+                    <span className="pill-zone-hint">⇄</span>
+                  </span>
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -141,7 +232,7 @@ export default function HeroTimeWeather({ weatherData, userName = 'Shyam' }) {
           </div>
 
           <div className="weather-temp-row">
-            <div>
+            <div className="temp-main-col">
               <div className="weather-big-temp stark-temp">
                 {weatherData.temp}°<span className="temp-unit">C</span>
               </div>
@@ -149,6 +240,52 @@ export default function HeroTimeWeather({ weatherData, userName = 'Shyam' }) {
                 {weatherData.condition || 'Mainly Clear'}
               </div>
             </div>
+
+            {/* Room PM 2.5 Callout to the right of temperature */}
+            {(() => {
+              const pmObj = roomPmData || {
+                pm25: 19,
+                status: 'Good',
+                color: '#34d399',
+              };
+              const pmVal = pmObj.pm25 != null ? pmObj.pm25 : '--';
+              const pmColor = pmObj.color || '#34d399';
+              const rawStatus = pmObj.status || 'Good';
+              const shortStatus = rawStatus.toUpperCase();
+
+              return (
+                <div
+                  className="room-pm-weather-callout"
+                  title={`Air Purifier 4 Compact • Air Quality: ${rawStatus} • PM 2.5: ${pmVal} µg/m³`}
+                  style={{
+                    borderColor: `${pmColor}44`,
+                    background: `linear-gradient(135deg, rgba(2, 8, 20, 0.78), ${pmColor}10)`,
+                  }}
+                >
+                  <div className="room-pm-callout-header">
+                    <ShieldCheck size={11} style={{ color: pmColor }} />
+                    <span className="room-pm-callout-title">ROOM PM2.5</span>
+                    <span
+                      className="room-pm-status-pill"
+                      style={{
+                        color: pmColor,
+                        borderColor: `${pmColor}55`,
+                        background: `${pmColor}18`,
+                      }}
+                    >
+                      {shortStatus}
+                    </span>
+                  </div>
+                  <div className="room-pm-callout-val-row">
+                    <span className="room-pm-callout-val" style={{ color: pmColor }}>
+                      {pmVal}
+                    </span>
+                    <span className="room-pm-callout-unit">µg/m³</span>
+                  </div>
+                </div>
+              );
+            })()}
+
             <div className="weather-icon-hud-container" title={weatherData.condition}>
               <DynamicWeatherIcon iconName={weatherData.iconName} size={32} color="var(--accent-cyan)" />
             </div>

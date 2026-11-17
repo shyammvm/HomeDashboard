@@ -120,6 +120,9 @@ export default function RemoteSettingsView({
   const [expenseTrackerApiUrl, setExpenseTrackerApiUrl] = useState(
     config.expenseTrackerApiUrl || 'https://smartexpensetracker-vtkb.onrender.com'
   );
+  const [pmMeterUrl, setPmMeterUrl] = useState(
+    config.pmMeterUrl || 'https://pmmeter.onrender.com/alexa'
+  );
   const [expenseTrackerSecret, setExpenseTrackerSecret] = useState(
     config.expenseTrackerSecret || '2546698'
   );

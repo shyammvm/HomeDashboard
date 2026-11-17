@@ -257,6 +257,22 @@ app.get('/api/sync', async (req, res) => {
   }
 });
 
+// Room PM 2.5 Air Purifier Proxy endpoint
+app.get('/api/room-pm', async (req, res) => {
+  const pmUrl = req.query.url || 'https://pmmeter.onrender.com/alexa';
+  try {
+    const fetchRes = await fetch(pmUrl, {
+      headers: { 'Accept': 'application/json' },
+      signal: AbortSignal.timeout(6000),
+    });
+    const text = await fetchRes.text();
+    res.setHeader('Content-Type', 'application/json');
+    return res.end(text);
+  } catch (err) {
+    return res.status(502).json({ error: 'Failed to fetch PM meter', details: err.message });
+  }
+});
+
 // RSS proxy endpoint
 app.get('/api/rss', async (req, res) => {
   const feedUrl = req.query.url || 'https://feeds.bbci.co.uk/news/world/rss.xml';

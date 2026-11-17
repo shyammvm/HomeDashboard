@@ -244,6 +244,24 @@ function apiProxyPlugin() {
             }
           }
 
+          // Room PM 2.5 Air Purifier Proxy
+          if (urlObj.pathname === '/api/room-pm') {
+            const pmUrl = urlObj.searchParams.get('url') || 'https://pmmeter.onrender.com/alexa';
+            try {
+              const fetchRes = await fetch(pmUrl, {
+                headers: { 'Accept': 'application/json' },
+                signal: AbortSignal.timeout(6000),
+              });
+              const text = await fetchRes.text();
+              res.setHeader('Content-Type', 'application/json');
+              return res.end(text);
+            } catch (err) {
+              res.statusCode = 502;
+              res.setHeader('Content-Type', 'application/json');
+              return res.end(JSON.stringify({ error: 'Failed to fetch PM meter', details: err.message }));
+            }
+          }
+
           // RSS proxy
           if (urlObj.pathname === '/api/rss') {
             const feedUrl = urlObj.searchParams.get('url') || 'https://feeds.bbci.co.uk/news/world/rss.xml';

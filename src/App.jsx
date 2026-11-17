@@ -19,6 +19,7 @@ import { fetchGoogleTasks } from './services/tasksService';
 import { fetchRssFeed } from './services/rssService';
 import { calculateLiveCommute, parseCoordinateString } from './services/commuteService';
 import { getInitialSettings, subscribeToSettings } from './services/settingsSyncService';
+import { fetchRoomPm, getCachedRoomPm } from './services/roomPmService';
 
 export default function App() {
   // Centralized dynamic settings synced across Phone, Laptop, and TV
@@ -55,6 +56,7 @@ export default function App() {
   const [newsArticles, setNewsArticles] = useState([]);
   const [isCalendarLive, setIsCalendarLive] = useState(false);
   const [expenseRefreshTrigger, setExpenseRefreshTrigger] = useState(0);
+  const [roomPmData, setRoomPmData] = useState(() => getCachedRoomPm());
 
   // Live Commute & LCD Sleep State
   const [commuteData, setCommuteData] = useState(null);
@@ -157,6 +159,18 @@ export default function App() {
     setNewsArticles(articles);
   }, [config.rssUrl]);
 
+  // Load live room PM 2.5 air quality
+  const loadRoomPm = useCallback(async () => {
+    try {
+      const data = await fetchRoomPm(config.pmMeterUrl || DASHBOARD_CONFIG.pmMeterUrl);
+      if (data && data.pm25 != null) {
+        setRoomPmData(data);
+      }
+    } catch (err) {
+      console.warn('Room PM loading failed:', err);
+    }
+  }, [config.pmMeterUrl]);
+
   // Master refresh function
   const handleRefreshAll = useCallback(() => {
     syncLocation();
@@ -164,8 +178,9 @@ export default function App() {
     loadTasks();
     loadNews(config.rssUrl);
     loadCommute();
+    loadRoomPm();
     setExpenseRefreshTrigger(prev => prev + 1);
-  }, [syncLocation, loadCalendar, loadTasks, loadNews, loadCommute, config.rssUrl]);
+  }, [syncLocation, loadCalendar, loadTasks, loadNews, loadCommute, loadRoomPm, config.rssUrl]);
 
   // Clock ticker for LCD TV Sleep Mode
   useEffect(() => {
@@ -206,6 +221,7 @@ export default function App() {
     loadTasks();
     loadNews(config.rssUrl);
     loadCommute();
+    loadRoomPm();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -278,6 +294,7 @@ export default function App() {
     const newsTimer = setInterval(() => loadNews(config.rssUrl), 15 * 60 * 1000); // 15 mins (was 30m)
     const expenseTimer = setInterval(() => setExpenseRefreshTrigger(prev => prev + 1), 3 * 60 * 1000); // 3 mins
     const commuteTimer = setInterval(() => loadCommute(), 3 * 60 * 1000); // 3 mins
+    const pmTimer = setInterval(() => loadRoomPm(), 60 * 1000); // 1 min
 
     return () => {
       clearInterval(weatherTimer);
@@ -286,8 +303,9 @@ export default function App() {
       clearInterval(newsTimer);
       clearInterval(expenseTimer);
       clearInterval(commuteTimer);
+      clearInterval(pmTimer);
     };
-  }, [loadWeather, loadCalendar, loadTasks, loadNews, loadCommute, config.rssUrl]);
+  }, [loadWeather, loadCalendar, loadTasks, loadNews, loadCommute, loadRoomPm, config.rssUrl]);
 
   const rotationClass = config.rotation ? `rotate-${config.rotation}` : '';
 
@@ -306,6 +324,7 @@ export default function App() {
         <HeroTimeWeather
           weatherData={weatherData}
           userName={config.userName}
+          roomPmData={roomPmData}
         />
 
         {/* Full-Width Tactical Console (Radar, Normal Google Traffic Map & News Looping Slides) */}
